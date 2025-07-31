@@ -1,0 +1,53 @@
+Powerpoint to video story POC
+
+The goals of this POC experiment are the following:
+
+	1) To prove that the system flow we document below is actually working
+	2) To get some insights in the quality of the libraries we're using
+	3) To understand if we can achieve "narrative styling" with different emotions: serious business, funny, cynical
+	4) To understand if the  TTS and avatar video creation providers we're using are suitable for our use case
+	5) To understand the processing times and ressource usage for long running tasks
+
+Constraints:
+
+Even though we will have a frontend that is nicely styled by lovable, we will not focus on the user experience.  To be specific:
+
+	1) There will be no authentication, user management or session management.  We simply open the frontend and start to experiment
+	2) Even though some of the backend tasks will be long-running tasks, we don't optimize the ux for that.  We will simply add a reload button on the main component.
+	3) No events, websocket etc.  We'll simply poll for updates by refreshing the main component on the UI.
+
+System flow:
+
+	1) The user open the frontend
+	2) The user selects the style: business, funny, cynical
+	3) The user uploads a ppt file
+	4) Once uploaded, the upload component is hidden.  Instead, a component that displays "PPTX parsing run started…" and a button "Stop parsing run and restart".  Clicking this button refreshes the UI and goes back to the initial state with enable upload component.
+	5) Now the system starts a long running task (the "current run"):
+		a. Parse the file:
+			i. Extract all text per slide and store in the db
+			ii. Extract the nots per slide and store in the db
+			iii. Export a PNG version of each slide.  Store in FS, link in DB
+			iv. Pass each image to an LLM for conceptual analysis
+				1) Analyse the layout and make a list of objects: tables, graphs, timelines, lists, multi-step processes, …
+				2) Using clues from text, notes and graphical layout, make a list of concepts that the user wants to express with the slide
+				3) Save raw analysis and conceptual analysis to db
+				4) Following a 3-slide batch as context (previous, current, next), create a narrative for each slide with a nice textual transition to the next slide.  Special slides are the first (opening) and the last (closing).  Save to the db
+		b. Show results to the user
+			i. Visualized in a "slides" component.
+			ii. This basically a grid with a row for each slide.  Columns:
+				1) Large-format thumbnail of slide PNG
+				2) Extracted text - hoover for modal with complete data
+				3) Extracted notes - hoover for modal with complete data
+				4) Conceptual analysis - hoover for modal with complete data
+				5) Slide narrative - - hoover for modal with complete data
+				6) Action buttons:
+					a) Generate speech.  Triggers backend action for this slide.  When generation is done, a callback updates the state and a play button is shown to play the audio.
+					b) Generate video & speech.  Triggers backend action for this slide.  When generation is done, a callback updates the state and a play button is shown to play the video.
+			iii. The component has two additional buttons - not row-bound:
+				1) Refresh - reloads the slides data from the backend for the current run 
+				2) When the current run is finished, enable a button "generate full story"
+					a) Triggers backend action for this slide.  When generation is done, a callback updates the state and a play button is shown to play the full video.
+		
+
+
+

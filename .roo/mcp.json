@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "alwaysAllow": [
+        "resolve-library-id",
+        "get-library-docs"
+      ]
+    },
+    "docs-mcp-server": {
+      "url": "http://localhost:6280/sse",
+      "disabled": false,
+      "autoApprove": [],
+      "alwaysAllow": [
+        "search_docs",
+        "find_version",
+        "fetch_url"
+      ],
+      "disabledTools": [
+        "fetch_url",
+        "remove_docs",
+        "cancel_job",
+        "get_job_info",
+        "list_jobs",
+        "find_version",
+        "scrape_docs"
+      ]
+    }
+  }
+}
