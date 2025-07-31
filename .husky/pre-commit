@@ -1,0 +1,54 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+
+# Check if there are backend changes
+if git diff --cached --name-only | grep -q "^backend/"; then
+  echo "📦 Backend changes detected - running checks..."
+  
+  # Check Spotless formatting
+  echo "🎨 Checking code formatting with Spotless..."
+  cd backend && mvn spotless:check
+  if [ $? -ne 0 ]; then
+    echo "❌ Spotless formatting check failed. Run 'mvn spotless:apply' to fix formatting."
+    exit 1
+  fi
+  
+  # Check compilation
+  echo "🔨 Checking compilation..."
+  mvn test-compile -q
+  if [ $? -ne 0 ]; then
+    echo "❌ Compilation failed. Please fix compilation errors."
+    exit 1
+  fi
+  
+  cd ..
+  echo "✅ Backend checks passed!"
+fi
+
+# Check if there are frontend changes
+if git diff --cached --name-only | grep -q "^frontend/"; then
+  echo "🌐 Frontend changes detected - running checks..."
+  
+  # Check ESLint
+  echo "🧹 Running ESLint..."
+  cd frontend && npm run lint
+  if [ $? -ne 0 ]; then
+    echo "❌ ESLint check failed. Please fix linting errors."
+    exit 1
+  fi
+  
+  # Check TypeScript compilation
+  echo "📘 Checking TypeScript compilation..."
+  npx tsc --noEmit
+  if [ $? -ne 0 ]; then
+    echo "❌ TypeScript compilation failed. Please fix type errors."
+    exit 1
+  fi
+  
+  cd ..
+  echo "✅ Frontend checks passed!"
+fi
+
+echo "🎉 All pre-commit checks passed!"

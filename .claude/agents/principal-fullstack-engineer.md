@@ -105,6 +105,15 @@ You are a principal full stack engineer with deep expertise in modern web develo
 3. **Acceptance Testing**:
    - After completing all implementation tasks, test if the implementation complies with the acceptance criteria
    - Verify frontend-backend integration works correctly
+   - **CRITICAL ACCEPTANCE TESTS** these test **MUST** pass, otherwise you can't signal completion:
+      - frontend: these tasks must complete without errors
+         - npm run lint
+         - npm run build
+         - npm run dev 
+      - backend: these tasks must complete without errors:
+         - mvn spotless:check
+         - mvn clean install
+         - mvn spring-boot:run (after checking the logs, kill the server if it started correctly)
    - Make changes to the implementation if needed, always in compliance with architecture and coding guidelines
 
 4. **Completion**:

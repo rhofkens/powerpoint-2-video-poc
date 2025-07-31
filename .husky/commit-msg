@@ -1,0 +1,24 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Conventional commit format validation
+commit_regex='^(feat|fix|docs|style|refactor|test|chore)(\([a-z0-9-]+\))?: .{1,72}$'
+
+if ! grep -qE "$commit_regex" "$1"; then
+    echo "❌ Invalid commit message format!"
+    echo ""
+    echo "📝 Commit message must follow conventional commit format:"
+    echo "   type(scope): description"
+    echo ""
+    echo "📋 Valid types: feat, fix, docs, style, refactor, test, chore"
+    echo "📏 Description must be 1-72 characters"
+    echo ""
+    echo "✅ Examples:"
+    echo "   feat: add presentation upload functionality"
+    echo "   fix(backend): correct database connection issue"
+    echo "   docs: update setup instructions"
+    echo ""
+    exit 1
+fi
+
+echo "✅ Commit message format is valid!"

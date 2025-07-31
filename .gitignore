@@ -197,6 +197,9 @@ uploads/
 media/
 static/uploads/
 
+# Project-specific storage (presentations and generated content)
+storage/presentations/
+
 # Secret and sensitive files
 secrets/
 credentials/

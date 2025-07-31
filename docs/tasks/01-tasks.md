@@ -44,8 +44,10 @@ This increment establishes the foundational infrastructure for the PowerPoint to
 - Configure CORS for frontend communication
 
 #### 4. Database Setup (PostgreSQL 17)
-- Install/configure PostgreSQL 17 locally
-- Create database schema: `ppt2video_poc`
+- PostgreSQL 17 is installed and configured locally
+- database schema: `ppt2video_poc`
+- database user: `ppt2video_db_user`
+- database password: exported in env var PPT2VIDEOPOC_DB_PWD
 - Implement initial JPA entities:
   - `Presentation` - Stores uploaded presentation metadata
   - `Slide` - Individual slide information
