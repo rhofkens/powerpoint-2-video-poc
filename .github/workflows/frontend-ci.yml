@@ -43,6 +43,13 @@ jobs:
         cd frontend
         rm -rf node_modules package-lock.json
         npm install
+        # Explicitly install platform-specific binaries
+        npm install --no-save --force @rollup/rollup-linux-x64-gnu @swc/core-linux-x64-gnu
+        # Debug: Check if the binaries are installed
+        echo "Checking for rollup binary:"
+        ls -la node_modules/@rollup/ || true
+        echo "Checking rollup package:"
+        ls -la node_modules/rollup/dist/ || true
 
     - name: Type check
       working-directory: frontend
