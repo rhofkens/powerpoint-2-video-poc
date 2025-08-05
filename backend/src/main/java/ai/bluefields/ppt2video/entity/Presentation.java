@@ -1,5 +1,6 @@
 package ai.bluefields.ppt2video.entity;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -38,9 +39,37 @@ public class Presentation {
   @Column(name = "file_size")
   private Long fileSize;
 
+  @Column(name = "upload_timestamp")
+  private LocalDateTime uploadTimestamp;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "status", nullable = false)
+  private Status status = Status.UPLOADED;
+
+  @Column(name = "error_message", columnDefinition = "TEXT")
+  private String errorMessage;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "processing_status", nullable = false)
   private ProcessingStatus processingStatus = ProcessingStatus.UPLOADED;
+
+  @Column(name = "parsing_started_at")
+  private LocalDateTime parsingStartedAt;
+
+  @Column(name = "parsing_completed_at")
+  private LocalDateTime parsingCompletedAt;
+
+  @Column(name = "rendering_started_at")
+  private LocalDateTime renderingStartedAt;
+
+  @Column(name = "rendering_completed_at")
+  private LocalDateTime renderingCompletedAt;
+
+  @Column(name = "renderer_used")
+  private String rendererUsed;
+
+  @Column(name = "rendering_error_message", columnDefinition = "TEXT")
+  private String renderingErrorMessage;
 
   @Column(name = "narrative_style")
   private String narrativeStyle;
@@ -54,7 +83,24 @@ public class Presentation {
   private LocalDateTime updatedAt;
 
   @OneToMany(mappedBy = "presentation", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+  @JsonManagedReference
   private List<Slide> slides = new ArrayList<>();
+
+  /** Enumeration of possible upload and parsing states for a presentation. */
+  public enum Status {
+    /** Initial state when the presentation is uploaded */
+    UPLOADED,
+    /** Presentation is being parsed to extract content */
+    PARSING,
+    /** Presentation parsing completed successfully */
+    PARSED,
+    /** Presentation is being rendered to images */
+    RENDERING,
+    /** All processing successfully completed */
+    COMPLETED,
+    /** Processing failed due to errors */
+    FAILED
+  }
 
   /**
    * Enumeration of possible processing states for a presentation. Tracks the presentation's

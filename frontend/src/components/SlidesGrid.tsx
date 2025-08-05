@@ -1,85 +1,74 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { Play, Volume2, Video, RefreshCw, FileVideo } from "lucide-react";
-import slide1 from "@/assets/slide-1.png";
-import slide2 from "@/assets/slide-2.png";
-import slide3 from "@/assets/slide-3.png";
-
-interface Slide {
-  id: number;
-  thumbnail: string;
-  extractedText: string;
-  extractedNotes: string;
-  conceptualAnalysis: string;
-  narrative: string;
-  hasAudio: boolean;
-  hasVideo: boolean;
-}
+import { Skeleton } from "@/components/ui/skeleton";
+import { Play, Volume2, Video, RefreshCw, FileVideo, ImageIcon } from "lucide-react";
+import { apiService } from '@/services/api';
+import { Slide } from '@/types/presentation';
+import { useToast } from "@/hooks/use-toast";
+import { usePresentationStore } from '@/store/presentationStore';
 
 interface SlidesGridProps {
+  presentationId: string;
   onRefresh: () => void;
   onGenerateFullStory: () => void;
   processingComplete: boolean;
 }
 
-const mockSlides: Slide[] = [
-  {
-    id: 1,
-    thumbnail: slide1,
-    extractedText: "Q3 Financial Performance\n• Revenue: $2.4M (+15% YoY)\n• Profit Margin: 23.5%\n• Customer Growth: 12%\n• Market Share: 8.2%",
-    extractedNotes: "Key talking points:\n- Emphasize the strong revenue growth\n- Highlight improved profit margins\n- Mention customer acquisition success\n- Compare favorably to competitors",
-    conceptualAnalysis: "Objects detected: Bar charts, line graphs, financial tables, growth arrows\n\nKey concepts:\n- Financial performance visualization\n- Year-over-year comparison emphasis\n- Positive trend indicators\n- Market position context\n- Performance metrics dashboard",
-    narrative: "Welcome to our Q3 financial review. I'm excited to share some outstanding results that demonstrate our company's continued growth trajectory. This quarter, we've achieved significant milestones across all key performance indicators, setting a strong foundation for the remainder of the year.",
-    hasAudio: false,
-    hasVideo: false
-  },
-  {
-    id: 2,
-    thumbnail: slide2,
-    extractedText: "Marketing Campaign Results\n• Social Media Reach: 2.8M\n• Email Open Rate: 34%\n• Conversion Rate: 8.5%\n• ROI: 320%",
-    extractedNotes: "Campaign highlights:\n- Record-breaking social media engagement\n- Email performance above industry average\n- Strong conversion metrics\n- Exceptional return on investment",
-    conceptualAnalysis: "Objects detected: Infographics, timeline elements, social media icons, conversion funnels\n\nKey concepts:\n- Multi-channel marketing approach\n- Performance metrics visualization\n- Timeline progression\n- ROI success story\n- Digital marketing effectiveness",
-    narrative: "Building on our financial success, let's examine how our strategic marketing initiatives have contributed to these remarkable results. Our integrated campaign approach has delivered exceptional performance across all channels, demonstrating the power of data-driven marketing decisions.",
-    hasAudio: true,
-    hasVideo: false
-  },
-  {
-    id: 3,
-    thumbnail: slide3,
-    extractedText: "Future Outlook & Strategy\n• Q4 Revenue Target: $3.2M\n• New Product Launch: Q1 2024\n• Team Expansion: 25 new hires\n• Market Expansion: 3 new regions",
-    extractedNotes: "Strategic priorities:\n- Aggressive Q4 revenue targets\n- Innovation pipeline ready\n- Scaling team capabilities\n- Geographic expansion plan",
-    conceptualAnalysis: "Objects detected: Roadmap visualization, target indicators, team growth charts, geographic maps\n\nKey concepts:\n- Strategic planning framework\n- Growth trajectory projection\n- Resource allocation planning\n- Market expansion strategy\n- Future vision articulation",
-    narrative: "As we look ahead, our strategic roadmap positions us for accelerated growth and market leadership. With ambitious yet achievable targets, innovative product development, and strategic team expansion, we're well-positioned to capitalize on emerging opportunities and deliver sustained value to our stakeholders.",
-    hasAudio: true,
-    hasVideo: true
-  }
-];
+export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, processingComplete }: SlidesGridProps) {
+  const [slides, setSlides] = useState<Slide[]>([]);
+  const [audioPlayerOpen, setAudioPlayerOpen] = useState<string | null>(null);
+  const [videoPlayerOpen, setVideoPlayerOpen] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+  const { currentSlides, setSlides: setStoreSlides } = usePresentationStore();
 
-export function SlidesGrid({ onRefresh, onGenerateFullStory, processingComplete }: SlidesGridProps) {
-  const [slides] = useState<Slide[]>(mockSlides);
-  const [audioPlayerOpen, setAudioPlayerOpen] = useState<number | null>(null);
-  const [videoPlayerOpen, setVideoPlayerOpen] = useState<number | null>(null);
+  useEffect(() => {
+    if (presentationId) {
+      fetchSlides();
+    }
+  }, [presentationId, processingComplete]);
 
-  const generateAudio = (slideId: number) => {
-    // Mock audio generation
+  const fetchSlides = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const slidesData = await apiService.getSlides(presentationId);
+      setSlides(slidesData);
+      setStoreSlides(slidesData);
+    } catch (err) {
+      console.error('Error fetching slides:', err);
+      setError('Failed to load slides');
+      toast({
+        title: "Error loading slides",
+        description: "Failed to fetch slides from the server",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateAudio = (slideId: string) => {
+    // TODO: Implement audio generation
     console.log(`Generating audio for slide ${slideId}`);
   };
 
-  const generateVideo = (slideId: number) => {
-    // Mock video generation
+  const generateVideo = (slideId: string) => {
+    // TODO: Implement video generation
     console.log(`Generating video for slide ${slideId}`);
   };
 
-  const playAudio = (slideId: number) => {
+  const playAudio = (slideId: string) => {
     setAudioPlayerOpen(slideId);
   };
 
-  const playVideo = (slideId: number) => {
+  const playVideo = (slideId: string) => {
     setVideoPlayerOpen(slideId);
   };
 
@@ -93,7 +82,10 @@ export function SlidesGrid({ onRefresh, onGenerateFullStory, processingComplete 
           </p>
         </div>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={onRefresh}>
+          <Button variant="outline" onClick={() => {
+            onRefresh();
+            fetchSlides();
+          }}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -106,20 +98,63 @@ export function SlidesGrid({ onRefresh, onGenerateFullStory, processingComplete 
         </div>
       </div>
 
-      <div className="space-y-4">
-        {slides.map((slide) => (
+      {loading ? (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
+                <div className="lg:col-span-2">
+                  <Skeleton className="w-full h-48 rounded-lg" />
+                </div>
+                <div className="lg:col-span-4 grid grid-cols-4 gap-4">
+                  {[1, 2, 3, 4].map((j) => (
+                    <Skeleton key={j} className="h-24" />
+                  ))}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : slides.length === 0 ? (
+        <Card className="p-12">
+          <div className="text-center space-y-4">
+            <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground" />
+            <p className="text-muted-foreground">No slides found in this presentation</p>
+            <Button onClick={() => {
+              onRefresh();
+              fetchSlides();
+            }} variant="outline">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {slides.map((slide) => (
           <Card key={slide.id} className="p-6">
             <div className="grid grid-cols-1 lg:grid-cols-6 gap-6 items-start">
               {/* Slide Thumbnail */}
               <div className="lg:col-span-2">
                 <div className="relative group">
-                  <img 
-                    src={slide.thumbnail} 
-                    alt={`Slide ${slide.id}`}
-                    className="w-full h-auto rounded-lg shadow-md group-hover:shadow-lg transition-shadow"
-                  />
+                  {slide.imagePath ? (
+                    <img 
+                      src={`http://localhost:8080/api/slides/${slide.id}/image`} 
+                      alt={`Slide ${slide.slideNumber}`}
+                      className="w-full h-auto rounded-lg shadow-md group-hover:shadow-lg transition-shadow"
+                    />
+                  ) : (
+                    <div className="w-full h-48 bg-muted rounded-lg shadow-md flex items-center justify-center">
+                      <div className="text-center space-y-2">
+                        <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">
+                          {slide.imagePath?.includes('placeholder') ? 'Rendering in progress...' : 'No image available'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <div className="absolute top-2 left-2">
-                    <Badge variant="secondary">Slide {slide.id}</Badge>
+                    <Badge variant="secondary">Slide {slide.slideNumber}</Badge>
                   </div>
                 </div>
               </div>
@@ -132,14 +167,14 @@ export function SlidesGrid({ onRefresh, onGenerateFullStory, processingComplete 
                   <HoverCard>
                     <HoverCardTrigger asChild>
                       <div className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start">
-                        <p className="text-xs line-clamp-4">{slide.extractedText}</p>
+                        <p className="text-xs line-clamp-4">{slide.content || 'No text content'}</p>
                       </div>
                     </HoverCardTrigger>
                     <HoverCardContent className="w-80">
                       <div className="space-y-2">
-                        <h4 className="text-sm font-semibold">Extracted Text - Slide {slide.id}</h4>
+                        <h4 className="text-sm font-semibold">Extracted Text - Slide {slide.slideNumber}</h4>
                         <ScrollArea className="max-h-96">
-                          <pre className="whitespace-pre-wrap text-sm">{slide.extractedText}</pre>
+                          <pre className="whitespace-pre-wrap text-sm">{slide.content || 'No text content'}</pre>
                         </ScrollArea>
                       </div>
                     </HoverCardContent>
@@ -152,34 +187,34 @@ export function SlidesGrid({ onRefresh, onGenerateFullStory, processingComplete 
                   <HoverCard>
                     <HoverCardTrigger asChild>
                       <div className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start">
-                        <p className="text-xs line-clamp-4">{slide.extractedNotes}</p>
+                        <p className="text-xs line-clamp-4">{slide.speakerNotes || 'No speaker notes available'}</p>
                       </div>
                     </HoverCardTrigger>
                     <HoverCardContent className="w-80">
                       <div className="space-y-2">
-                        <h4 className="text-sm font-semibold">Extracted Notes - Slide {slide.id}</h4>
+                        <h4 className="text-sm font-semibold">Extracted Notes - Slide {slide.slideNumber}</h4>
                         <ScrollArea className="max-h-96">
-                          <pre className="whitespace-pre-wrap text-sm">{slide.extractedNotes}</pre>
+                          <pre className="whitespace-pre-wrap text-sm">{slide.speakerNotes || 'No speaker notes available'}</pre>
                         </ScrollArea>
                       </div>
                     </HoverCardContent>
                   </HoverCard>
                 </div>
 
-                {/* Conceptual Analysis */}
+                {/* Slide Title */}
                 <div className="flex flex-col h-full">
-                  <h4 className="font-medium text-sm mb-2">Conceptual Analysis</h4>
+                  <h4 className="font-medium text-sm mb-2">Slide Title</h4>
                   <HoverCard>
                     <HoverCardTrigger asChild>
                       <div className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start">
-                        <p className="text-xs line-clamp-4">{slide.conceptualAnalysis}</p>
+                        <p className="text-xs line-clamp-4">{slide.title || 'Analysis pending...'}</p>
                       </div>
                     </HoverCardTrigger>
                     <HoverCardContent className="w-80">
                       <div className="space-y-2">
-                        <h4 className="text-sm font-semibold">Conceptual Analysis - Slide {slide.id}</h4>
+                        <h4 className="text-sm font-semibold">Slide Title - Slide {slide.slideNumber}</h4>
                         <ScrollArea className="max-h-96">
-                          <pre className="whitespace-pre-wrap text-sm">{slide.conceptualAnalysis}</pre>
+                          <pre className="whitespace-pre-wrap text-sm">{slide.title || 'No title available'}</pre>
                         </ScrollArea>
                       </div>
                     </HoverCardContent>
@@ -192,14 +227,14 @@ export function SlidesGrid({ onRefresh, onGenerateFullStory, processingComplete 
                   <HoverCard>
                     <HoverCardTrigger asChild>
                       <div className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start">
-                        <p className="text-xs line-clamp-4">{slide.narrative}</p>
+                        <p className="text-xs line-clamp-4">{slide.generatedNarrative || 'Narrative not generated yet'}</p>
                       </div>
                     </HoverCardTrigger>
                     <HoverCardContent className="w-80">
                       <div className="space-y-2">
-                        <h4 className="text-sm font-semibold">Slide Narrative - Slide {slide.id}</h4>
+                        <h4 className="text-sm font-semibold">Slide Narrative - Slide {slide.slideNumber}</h4>
                         <ScrollArea className="max-h-96">
-                          <p className="text-sm whitespace-pre-wrap">{slide.narrative}</p>
+                          <p className="text-sm whitespace-pre-wrap">{slide.generatedNarrative || 'Narrative not generated yet'}</p>
                         </ScrollArea>
                       </div>
                     </HoverCardContent>
@@ -211,7 +246,7 @@ export function SlidesGrid({ onRefresh, onGenerateFullStory, processingComplete 
               <div className="lg:col-span-6 flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-3 pt-4 border-t">
                 {/* Audio Generation */}
                 <div className="flex space-x-2">
-                  {!slide.hasAudio ? (
+                  {!slide.audioPath ? (
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -234,7 +269,7 @@ export function SlidesGrid({ onRefresh, onGenerateFullStory, processingComplete 
 
                 {/* Video Generation */}
                 <div className="flex space-x-2">
-                  {!slide.hasVideo ? (
+                  {!slide.videoPath ? (
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -257,18 +292,19 @@ export function SlidesGrid({ onRefresh, onGenerateFullStory, processingComplete 
               </div>
             </div>
           </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Audio Player Dialog */}
       <Dialog open={audioPlayerOpen !== null} onOpenChange={() => setAudioPlayerOpen(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Audio Player - Slide {audioPlayerOpen}</DialogTitle>
+            <DialogTitle>Audio Player - Slide {slides.find(s => s.id === audioPlayerOpen)?.slideNumber}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="bg-muted/50 p-4 rounded-lg">
-              <p className="text-sm mb-3">Playing narrative for slide {audioPlayerOpen}</p>
+              <p className="text-sm mb-3">Playing narrative for slide {slides.find(s => s.id === audioPlayerOpen)?.slideNumber}</p>
               <audio controls className="w-full">
                 <source src="/path/to/audio.mp3" type="audio/mpeg" />
                 Your browser does not support the audio element.
@@ -285,11 +321,11 @@ export function SlidesGrid({ onRefresh, onGenerateFullStory, processingComplete 
       <Dialog open={videoPlayerOpen !== null} onOpenChange={() => setVideoPlayerOpen(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Video Player - Slide {videoPlayerOpen}</DialogTitle>
+            <DialogTitle>Video Player - Slide {slides.find(s => s.id === videoPlayerOpen)?.slideNumber}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="bg-muted/50 p-4 rounded-lg">
-              <p className="text-sm mb-3">Playing video with speech for slide {videoPlayerOpen}</p>
+              <p className="text-sm mb-3">Playing video with speech for slide {slides.find(s => s.id === videoPlayerOpen)?.slideNumber}</p>
               <video controls className="w-full rounded-md">
                 <source src="/path/to/video.mp4" type="video/mp4" />
                 Your browser does not support the video element.

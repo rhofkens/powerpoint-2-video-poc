@@ -1,69 +1,53 @@
 import { useState, useEffect } from 'react';
 import { StyleSelector, type NarrativeStyle } from '@/components/StyleSelector';
 import { FileUpload } from '@/components/FileUpload';
-import { ProcessingStatus } from '@/components/ProcessingStatus';
-import { SlidesGrid } from '@/components/SlidesGrid';
+import { UploadHistory } from '@/components/UploadHistory';
+import { PresentationDetail } from '@/components/PresentationDetail';
+import { RendererStatus } from '@/components/RendererStatus';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { usePresentationStore } from '@/store/presentationStore';
+import { PresentationUploadResponse } from '@/types/presentation';
 
-type AppState = 'style-selection' | 'file-upload' | 'processing' | 'results';
+type AppState = 'style-selection' | 'file-upload' | 'presentation-detail';
 
 const Index = () => {
-  const [appState, setAppState] = useState<AppState>('style-selection');
+  const [appState, setAppState] = useState<AppState>('file-upload'); // Start with upload instead of style selection
   const [selectedStyle, setSelectedStyle] = useState<NarrativeStyle | null>(null);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [processingProgress, setProcessingProgress] = useState(0);
-  const [processingComplete, setProcessingComplete] = useState(false);
   const { toast } = useToast();
+  const { currentPresentation, addPresentation, setCurrentPresentation } = usePresentationStore();
 
-  // Simulate processing progress
+  // Watch for current presentation changes to switch to detail view
   useEffect(() => {
-    if (appState === 'processing') {
-      const interval = setInterval(() => {
-        setProcessingProgress(prev => {
-          const newProgress = prev + Math.random() * 15;
-          if (newProgress >= 100) {
-            setProcessingComplete(true);
-            setAppState('results');
-            clearInterval(interval);
-            return 100;
-          }
-          return newProgress;
-        });
-      }, 1500);
-
-      return () => clearInterval(interval);
+    if (currentPresentation && appState === 'file-upload') {
+      setAppState('presentation-detail');
     }
-  }, [appState]);
+  }, [currentPresentation, appState]);
 
   const handleStyleSelect = (style: NarrativeStyle) => {
     setSelectedStyle(style);
     setAppState('file-upload');
   };
 
-  const handleFileUploaded = (file: File) => {
-    setUploadedFile(file);
-    setAppState('processing');
-    setProcessingProgress(0);
-    setProcessingComplete(false);
+  const handleFileUploaded = (response: PresentationUploadResponse) => {
+    // Convert upload response to presentation object
+    const presentation = {
+      id: response.id,
+      title: response.originalFilename.replace(/\.(pptx?|ppt)$/i, ''),
+      originalFilename: response.originalFilename,
+      fileSize: response.fileSize,
+      processingStatus: response.status,
+      createdAt: response.uploadTimestamp,
+      updatedAt: response.uploadTimestamp
+    };
+    addPresentation(presentation);
+    setCurrentPresentation(presentation);
+    setAppState('presentation-detail');
   };
 
-  const handleStopAndRestart = () => {
-    setAppState('style-selection');
-    setSelectedStyle(null);
-    setUploadedFile(null);
-    setProcessingProgress(0);
-    setProcessingComplete(false);
-  };
-
-  const handleRefresh = () => {
-    // In real implementation, this would refresh data from backend
-    console.log('Refreshing slides data...');
-  };
-
-  const handleGenerateFullStory = () => {
-    // In real implementation, this would trigger full story generation
-    console.log('Generating full story...');
+  const handleBackToUpload = () => {
+    setAppState('file-upload');
+    setCurrentPresentation(null);
   };
 
   const handleHealthCheck = async () => {
@@ -132,23 +116,23 @@ const Index = () => {
           )}
 
           {appState === 'file-upload' && (
-            <FileUpload onFileUploaded={handleFileUploaded} />
+            <div className="space-y-8">
+              <div className="grid gap-8 lg:grid-cols-2">
+                <div>
+                  <FileUpload onFileUploaded={handleFileUploaded} />
+                </div>
+                <div>
+                  <UploadHistory />
+                </div>
+              </div>
+              <div className="max-w-2xl mx-auto">
+                <RendererStatus />
+              </div>
+            </div>
           )}
 
-          {appState === 'processing' && uploadedFile && (
-            <ProcessingStatus
-              fileName={uploadedFile.name}
-              onStopAndRestart={handleStopAndRestart}
-              progress={processingProgress}
-            />
-          )}
-
-          {appState === 'results' && (
-            <SlidesGrid
-              onRefresh={handleRefresh}
-              onGenerateFullStory={handleGenerateFullStory}
-              processingComplete={processingComplete}
-            />
+          {appState === 'presentation-detail' && (
+            <PresentationDetail onBack={handleBackToUpload} />
           )}
         </div>
 
@@ -156,8 +140,7 @@ const Index = () => {
         <div className="fixed bottom-4 right-4 text-xs text-muted-foreground bg-card border rounded-lg p-3 shadow-lg">
           <div>State: {appState}</div>
           <div>Style: {selectedStyle || 'none'}</div>
-          <div>File: {uploadedFile?.name || 'none'}</div>
-          {appState === 'processing' && <div>Progress: {Math.round(processingProgress)}%</div>}
+          <div>Current: {currentPresentation?.originalFilename || 'none'}</div>
         </div>
       </div>
     </div>

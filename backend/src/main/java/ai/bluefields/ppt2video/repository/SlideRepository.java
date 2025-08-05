@@ -20,4 +20,12 @@ public interface SlideRepository extends JpaRepository<Slide, UUID> {
    * @return list of slides sorted by slide number in ascending order
    */
   List<Slide> findByPresentationIdOrderBySlideNumber(UUID presentationId);
+
+  /**
+   * Counts the number of slides for a specific presentation.
+   *
+   * @param presentationId the UUID of the presentation
+   * @return the number of slides
+   */
+  int countByPresentationId(UUID presentationId);
 }

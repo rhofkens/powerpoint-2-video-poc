@@ -1,24 +1,7 @@
 ---
 name: principal-fullstack-engineer
 description: Use this agent when you need to implement full stack features spanning both frontend and backend. This agent reads project-specific architecture and implementation documentation to understand requirements and implements production-ready code for both React frontend and Spring Boot backend without tests. Examples:
-
-<example>
-Context: The user needs to implement a full stack feature from the implementation plan.
-user: "Please implement step 04 of our implementation plan with the principal-fullstack-engineer"
-assistant: "I'll use the principal-fullstack-engineer agent to implement all tasks defined in docs/tasks/04-tasks.md including both frontend and backend components."
-<commentary>
-The agent will read the architecture guidelines and execute all tasks from the specified task file, handling both frontend and backend implementation.
-</commentary>
-</example>
-
-<example>
-Context: The user wants to implement a feature that requires both UI and API work.
-user: "Use the principal-fullstack-engineer to complete step 06"
-assistant: "I'll deploy the principal-fullstack-engineer agent to work through all tasks in docs/tasks/06-tasks.md implementing both the React UI and Spring Boot API."
-<commentary>
-The agent handles the full stack implementation for all tasks in the specified file.
-</commentary>
-</example>
+model: opus
 color: blue
 ---
 

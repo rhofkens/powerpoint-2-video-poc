@@ -19,6 +19,8 @@ interface PresentationState {
   // Actions
   /** Sets the currently active presentation */
   setCurrentPresentation: (presentation: Presentation | null) => void;
+  /** Sets all presentations in the store */
+  setPresentations: (presentations: Presentation[]) => void;
   /** Adds a new presentation to the store */
   addPresentation: (presentation: Presentation) => void;
   /** Updates an existing presentation with partial data */
@@ -58,6 +60,9 @@ export const usePresentationStore = create<PresentationState>()(
       
       setCurrentPresentation: (presentation) =>
         set({ currentPresentation: presentation }, false, 'setCurrentPresentation'),
+        
+      setPresentations: (presentations) =>
+        set({ presentations }, false, 'setPresentations'),
         
       addPresentation: (presentation) =>
         set((state) => ({

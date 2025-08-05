@@ -182,6 +182,11 @@ temp/
 *.crt
 *.cer
 
+# License files
+*.lic
+Aspose.Slides.lic
+**/licenses/
+
 # Agent and AI tool specific
 .cursor/
 .github/copilot/
@@ -199,11 +204,14 @@ static/uploads/
 
 # Project-specific storage (presentations and generated content)
 storage/presentations/
+backend/storage/
 
 # Secret and sensitive files
 secrets/
 credentials/
 *.secret
+application-local.properties
+backend/set-msgraph-env.sh
 
 # Generated files
 generated/

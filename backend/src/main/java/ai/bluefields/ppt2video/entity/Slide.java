@@ -1,7 +1,10 @@
 package ai.bluefields.ppt2video.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -26,6 +29,7 @@ public class Slide {
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "presentation_id", nullable = false)
+  @JsonBackReference
   private Presentation presentation;
 
   @Column(name = "slide_number", nullable = false)
@@ -37,8 +41,33 @@ public class Slide {
   @Column(name = "content", columnDefinition = "TEXT")
   private String content;
 
+  @Column(name = "content_text", columnDefinition = "TEXT")
+  private String contentText;
+
+  @Column(name = "speaker_notes", columnDefinition = "TEXT")
+  private String speakerNotes;
+
+  @Column(name = "layout_type")
+  private String layoutType;
+
   @Column(name = "image_path")
   private String imagePath;
+
+  @Column(name = "image_generated_at")
+  private LocalDateTime imageGeneratedAt;
+
+  @Column(name = "image_width")
+  private Integer imageWidth;
+
+  @Column(name = "image_height")
+  private Integer imageHeight;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "rendering_status")
+  private RenderingStatus renderingStatus = RenderingStatus.PENDING;
+
+  @Column(name = "rendering_error_message", columnDefinition = "TEXT")
+  private String renderingErrorMessage;
 
   @Column(name = "audio_path")
   private String audioPath;
@@ -61,6 +90,9 @@ public class Slide {
   @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
 
+  @OneToMany(mappedBy = "slide", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+  private List<SlideImage> slideImages = new ArrayList<>();
+
   /**
    * Enumeration of possible processing states for an individual slide. Tracks the slide's progress
    * through content generation and media creation.
@@ -77,6 +109,18 @@ public class Slide {
     /** All processing successfully completed */
     COMPLETED,
     /** Processing failed at some stage */
+    FAILED
+  }
+
+  /** Enumeration of possible rendering states for a slide's image generation. */
+  public enum RenderingStatus {
+    /** Slide image rendering not yet started */
+    PENDING,
+    /** Slide image is being rendered */
+    RENDERING,
+    /** Slide image rendering completed successfully */
+    COMPLETED,
+    /** Slide image rendering failed */
     FAILED
   }
 }
