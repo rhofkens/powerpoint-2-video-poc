@@ -19,7 +19,7 @@
     "clean": "npm run clean:backend && npm run clean:frontend",
     "clean:backend": "cd backend && mvn clean",
     "clean:frontend": "cd frontend && rm -rf node_modules dist",
-    "prepare": "husky"
+    "prepare": "node -e \"if (process.env.CI !== 'true') { require('child_process').execSync('husky', {stdio: 'inherit'}) }\" || true"
   },
   "workspaces": [
     "frontend"
