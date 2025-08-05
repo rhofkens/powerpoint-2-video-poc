@@ -36,7 +36,10 @@ jobs:
         cache-dependency-path: package-lock.json
 
     - name: Install dependencies
-      run: npm ci --workspaces --include-workspace-root
+      run: |
+        npm ci --workspaces --include-workspace-root
+        # Workaround for Rollup optional dependency issue
+        cd frontend && npm install @rollup/rollup-linux-x64-gnu --no-save
 
     - name: Type check
       working-directory: frontend
