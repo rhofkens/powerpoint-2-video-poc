@@ -15,6 +15,7 @@ public record PresentationDto(
     Long fileSize,
     Presentation.ProcessingStatus processingStatus,
     String narrativeStyle,
+    DeckAnalysisDto deckAnalysis,
     LocalDateTime createdAt,
     LocalDateTime updatedAt) {
 
@@ -32,6 +33,9 @@ public record PresentationDto(
         presentation.getFileSize(),
         presentation.getProcessingStatus(),
         presentation.getNarrativeStyle(),
+        presentation.getDeckAnalysis() != null
+            ? DeckAnalysisDto.fromEntity(presentation.getDeckAnalysis())
+            : null,
         presentation.getCreatedAt(),
         presentation.getUpdatedAt());
   }

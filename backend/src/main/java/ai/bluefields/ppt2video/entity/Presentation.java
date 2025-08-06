@@ -86,6 +86,9 @@ public class Presentation {
   @JsonManagedReference
   private List<Slide> slides = new ArrayList<>();
 
+  @OneToOne(mappedBy = "presentation", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+  private DeckAnalysis deckAnalysis;
+
   /** Enumeration of possible upload and parsing states for a presentation. */
   public enum Status {
     /** Initial state when the presentation is uploaded */
@@ -111,8 +114,14 @@ public class Presentation {
     UPLOADED,
     /** Presentation is being parsed to extract slides */
     PARSING,
+    /** Slides have been rendered and ready for analysis */
+    RENDERING_READY,
     /** AI is analyzing the presentation content */
     ANALYZING,
+    /** Intent analysis for deck and slides is complete */
+    INTENT_ANALYSIS_COMPLETE,
+    /** Narrative generation is complete */
+    NARRATIVE_COMPLETE,
     /** Generating narratives and speech content */
     GENERATING_CONTENT,
     /** All processing successfully completed */

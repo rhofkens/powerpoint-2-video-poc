@@ -6,11 +6,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Play, Volume2, Video, RefreshCw, FileVideo, ImageIcon } from "lucide-react";
+import { Play, Volume2, Video, RefreshCw, FileVideo, ImageIcon, Brain, MessageCircle, Loader2 } from "lucide-react";
 import { apiService } from '@/services/api';
-import { Slide } from '@/types/presentation';
+import { Slide, SlideAnalysis, SlideNarrative } from '@/types/presentation';
 import { useToast } from "@/hooks/use-toast";
 import { usePresentationStore } from '@/store/presentationStore';
+import { useAnalysisStore } from '@/store/analysisStore';
+import { SlideNarrativeCard } from './SlideNarrativeCard';
+import { SlideAnalysisCard } from './SlideAnalysisCard';
 
 interface SlidesGridProps {
   presentationId: string;
@@ -25,8 +28,17 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
   const [videoPlayerOpen, setVideoPlayerOpen] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [analyzingSlides, setAnalyzingSlides] = useState<Set<string>>(new Set());
+  const [generatingNarratives, setGeneratingNarratives] = useState<Set<string>>(new Set());
+  
+  // Modal states for detailed content view
+  const [modalOpen, setModalOpen] = useState<{
+    slideId: string;
+    type: 'content' | 'notes' | 'analysis' | 'title' | 'narrative';
+  } | null>(null);
   const { toast } = useToast();
   const { currentSlides, setSlides: setStoreSlides } = usePresentationStore();
+  const { narrativeStyle } = useAnalysisStore();
 
   useEffect(() => {
     if (presentationId) {
@@ -54,6 +66,63 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
     }
   };
 
+  const analyzeSlide = async (slideId: string) => {
+    const slide = slides.find(s => s.id === slideId);
+    const hasExistingAnalysis = !!slide?.slideAnalysis;
+    
+    setAnalyzingSlides(prev => new Set(prev).add(slideId));
+    try {
+      const analysis = await apiService.analyzeSlide(slideId, hasExistingAnalysis);
+      toast({
+        title: hasExistingAnalysis ? "Slide re-analyzed" : "Slide analyzed",
+        description: hasExistingAnalysis 
+          ? "AI has successfully re-analyzed the slide content" 
+          : "AI has successfully analyzed the slide content"
+      });
+      // Refresh slides to show analysis results
+      await fetchSlides();
+    } catch (err) {
+      console.error('Error analyzing slide:', err);
+      toast({
+        title: "Analysis failed",
+        description: "Failed to analyze slide. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setAnalyzingSlides(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(slideId);
+        return newSet;
+      });
+    }
+  };
+
+  const generateNarrative = async (slideId: string) => {
+    setGeneratingNarratives(prev => new Set(prev).add(slideId));
+    try {
+      const narrative = await apiService.generateNarrative(slideId, narrativeStyle);
+      toast({
+        title: "Narrative generated",
+        description: "AI has successfully generated the slide narrative"
+      });
+      // Refresh slides to show narrative
+      await fetchSlides();
+    } catch (err) {
+      console.error('Error generating narrative:', err);
+      toast({
+        title: "Generation failed",
+        description: "Failed to generate narrative. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setGeneratingNarratives(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(slideId);
+        return newSet;
+      });
+    }
+  };
+
   const generateAudio = (slideId: string) => {
     // TODO: Implement audio generation
     console.log(`Generating audio for slide ${slideId}`);
@@ -70,6 +139,60 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
 
   const playVideo = (slideId: string) => {
     setVideoPlayerOpen(slideId);
+  };
+
+  const openModal = (slideId: string, type: 'content' | 'notes' | 'analysis' | 'title' | 'narrative') => {
+    setModalOpen({ slideId, type });
+  };
+
+  const getModalContent = () => {
+    if (!modalOpen) return null;
+    
+    const slide = slides.find(s => s.id === modalOpen.slideId);
+    if (!slide) return null;
+
+    switch (modalOpen.type) {
+      case 'content':
+        return {
+          title: `Extracted Text - Slide ${slide.slideNumber}`,
+          content: slide.content || 'No text content'
+        };
+      case 'notes':
+        return {
+          title: `Extracted Notes - Slide ${slide.slideNumber}`,
+          content: slide.speakerNotes || 'No speaker notes available'
+        };
+      case 'analysis':
+        if (!slide.slideAnalysis) {
+          return {
+            title: `AI Analysis - Slide ${slide.slideNumber}`,
+            content: <p className="text-muted-foreground">No analysis available</p>
+          };
+        }
+        return {
+          title: `AI Analysis - Slide ${slide.slideNumber}`,
+          content: <SlideAnalysisCard analysis={slide.slideAnalysis} slideNumber={slide.slideNumber} />
+        };
+      case 'title':
+        return {
+          title: `Slide Title - Slide ${slide.slideNumber}`,
+          content: slide.title || 'No title available'
+        };
+      case 'narrative':
+        if (slide.slideNarrative) {
+          return {
+            title: `Slide Narrative - Slide ${slide.slideNumber}`,
+            content: <SlideNarrativeCard narrative={slide.slideNarrative} slideNumber={slide.slideNumber} />
+          };
+        } else {
+          return {
+            title: `Slide Narrative - Slide ${slide.slideNumber}`,
+            content: <p className="text-muted-foreground">{slide.generatedNarrative || 'Narrative not generated yet'}</p>
+          };
+        }
+      default:
+        return null;
+    }
   };
 
   return (
@@ -160,13 +283,17 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
               </div>
 
               {/* Content Columns */}
-              <div className="lg:col-span-4 grid grid-cols-1 md:grid-cols-4 gap-4 h-full items-end">
+              <div className="lg:col-span-4 grid grid-cols-1 md:grid-cols-5 gap-4 h-full items-end">
                 {/* Extracted Text */}
                 <div className="flex flex-col h-full">
                   <h4 className="font-medium text-sm mb-2">Extracted Text</h4>
                   <HoverCard>
                     <HoverCardTrigger asChild>
-                      <div className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start">
+                      <div 
+                        className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start"
+                        onDoubleClick={() => openModal(slide.id, 'content')}
+                        title="Double-click to open in modal"
+                      >
                         <p className="text-xs line-clamp-4">{slide.content || 'No text content'}</p>
                       </div>
                     </HoverCardTrigger>
@@ -176,6 +303,7 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                         <ScrollArea className="max-h-96">
                           <pre className="whitespace-pre-wrap text-sm">{slide.content || 'No text content'}</pre>
                         </ScrollArea>
+                        <p className="text-xs text-muted-foreground mt-2">💡 Double-click to open in larger modal</p>
                       </div>
                     </HoverCardContent>
                   </HoverCard>
@@ -186,7 +314,11 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                   <h4 className="font-medium text-sm mb-2">Extracted Notes</h4>
                   <HoverCard>
                     <HoverCardTrigger asChild>
-                      <div className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start">
+                      <div 
+                        className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start"
+                        onDoubleClick={() => openModal(slide.id, 'notes')}
+                        title="Double-click to open in modal"
+                      >
                         <p className="text-xs line-clamp-4">{slide.speakerNotes || 'No speaker notes available'}</p>
                       </div>
                     </HoverCardTrigger>
@@ -196,6 +328,59 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                         <ScrollArea className="max-h-96">
                           <pre className="whitespace-pre-wrap text-sm">{slide.speakerNotes || 'No speaker notes available'}</pre>
                         </ScrollArea>
+                        <p className="text-xs text-muted-foreground mt-2">💡 Double-click to open in larger modal</p>
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
+                </div>
+
+                {/* AI Analysis */}
+                <div className="flex flex-col h-full">
+                  <h4 className="font-medium text-sm mb-2">AI Analysis</h4>
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <div 
+                        className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start"
+                        onDoubleClick={() => openModal(slide.id, 'analysis')}
+                        title="Double-click to open in modal"
+                      >
+                        <p className="text-xs line-clamp-4">
+                          {slide.slideAnalysis?.generalMessage || 'No analysis available'}
+                        </p>
+                      </div>
+                    </HoverCardTrigger>
+                    <HoverCardContent className="w-80">
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold">AI Analysis - Slide {slide.slideNumber}</h4>
+                        <ScrollArea className="max-h-96">
+                          {slide.slideAnalysis ? (
+                            <div className="space-y-3">
+                              <div>
+                                <p className="font-medium text-sm mb-1">General Message:</p>
+                                <p className="text-sm">{slide.slideAnalysis.generalMessage}</p>
+                              </div>
+                              {slide.slideAnalysis.keyPoints && (
+                                <div>
+                                  <p className="font-medium text-sm mb-1">Key Points:</p>
+                                  <ul className="text-sm space-y-1">
+                                    {JSON.parse(slide.slideAnalysis.keyPoints).map((point: string, i: number) => (
+                                      <li key={i}>• {point}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {slide.slideAnalysis.emphasisLevel && (
+                                <div>
+                                  <p className="font-medium text-sm mb-1">Emphasis Level:</p>
+                                  <p className="text-sm">{slide.slideAnalysis.emphasisLevel}</p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm">No analysis available</p>
+                          )}
+                        </ScrollArea>
+                        <p className="text-xs text-muted-foreground mt-2">💡 Double-click to open in larger modal</p>
                       </div>
                     </HoverCardContent>
                   </HoverCard>
@@ -206,8 +391,12 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                   <h4 className="font-medium text-sm mb-2">Slide Title</h4>
                   <HoverCard>
                     <HoverCardTrigger asChild>
-                      <div className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start">
-                        <p className="text-xs line-clamp-4">{slide.title || 'Analysis pending...'}</p>
+                      <div 
+                        className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start"
+                        onDoubleClick={() => openModal(slide.id, 'title')}
+                        title="Double-click to open in modal"
+                      >
+                        <p className="text-xs line-clamp-4">{slide.title || 'No title available'}</p>
                       </div>
                     </HoverCardTrigger>
                     <HoverCardContent className="w-80">
@@ -216,6 +405,7 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                         <ScrollArea className="max-h-96">
                           <pre className="whitespace-pre-wrap text-sm">{slide.title || 'No title available'}</pre>
                         </ScrollArea>
+                        <p className="text-xs text-muted-foreground mt-2">💡 Double-click to open in larger modal</p>
                       </div>
                     </HoverCardContent>
                   </HoverCard>
@@ -226,16 +416,46 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                   <h4 className="font-medium text-sm mb-2">Slide Narrative</h4>
                   <HoverCard>
                     <HoverCardTrigger asChild>
-                      <div className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start">
-                        <p className="text-xs line-clamp-4">{slide.generatedNarrative || 'Narrative not generated yet'}</p>
+                      <div 
+                        className="flex-1 p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors flex items-start"
+                        onDoubleClick={() => openModal(slide.id, 'narrative')}
+                        title="Double-click to open in modal"
+                      >
+                        <p className="text-xs line-clamp-4">
+                          {slide.slideNarrative?.narrativeText || slide.generatedNarrative || 'Narrative not generated yet'}
+                        </p>
                       </div>
                     </HoverCardTrigger>
                     <HoverCardContent className="w-80">
                       <div className="space-y-2">
                         <h4 className="text-sm font-semibold">Slide Narrative - Slide {slide.slideNumber}</h4>
                         <ScrollArea className="max-h-96">
-                          <p className="text-sm whitespace-pre-wrap">{slide.generatedNarrative || 'Narrative not generated yet'}</p>
+                          {slide.slideNarrative ? (
+                            <div className="space-y-3">
+                              <div>
+                                <p className="font-medium text-sm mb-1">Narrative:</p>
+                                <p className="text-sm whitespace-pre-wrap">{slide.slideNarrative.narrativeText}</p>
+                              </div>
+                              {slide.slideNarrative.transitionPhrase && (
+                                <div>
+                                  <p className="font-medium text-sm mb-1">Transition:</p>
+                                  <p className="text-sm italic">{slide.slideNarrative.transitionPhrase}</p>
+                                </div>
+                              )}
+                              {slide.slideNarrative.durationSeconds && (
+                                <div>
+                                  <p className="font-medium text-sm mb-1">Duration:</p>
+                                  <p className="text-sm">{slide.slideNarrative.durationSeconds} seconds</p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm whitespace-pre-wrap">
+                              {slide.generatedNarrative || 'Narrative not generated yet'}
+                            </p>
+                          )}
                         </ScrollArea>
+                        <p className="text-xs text-muted-foreground mt-2">💡 Double-click to open in larger modal</p>
                       </div>
                     </HoverCardContent>
                   </HoverCard>
@@ -244,6 +464,47 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
 
               {/* Action Buttons */}
               <div className="lg:col-span-6 flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-3 pt-4 border-t">
+                {/* AI Analysis */}
+                <div className="flex space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => analyzeSlide(slide.id)}
+                    disabled={analyzingSlides.has(slide.id)}
+                  >
+                    {analyzingSlides.has(slide.id) ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="h-4 w-4 mr-2" />
+                        {slide.slideAnalysis ? 'Re-analyze' : 'Analyze Slide'}
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => generateNarrative(slide.id)}
+                    disabled={generatingNarratives.has(slide.id)}
+                  >
+                    {generatingNarratives.has(slide.id) ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle className="h-4 w-4 mr-2" />
+                        Generate Narrative
+                      </>
+                    )}
+                  </Button>
+                </div>
+
                 {/* Audio Generation */}
                 <div className="flex space-x-2">
                   {!slide.audioPath ? (
@@ -337,6 +598,25 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Content Detail Modal */}
+      <Dialog open={modalOpen !== null} onOpenChange={() => setModalOpen(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>{getModalContent()?.title}</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] pr-4">
+            <div className="space-y-4">
+              {typeof getModalContent()?.content === 'string' ? (
+                <pre className="whitespace-pre-wrap text-sm leading-relaxed">{getModalContent()?.content}</pre>
+              ) : (
+                getModalContent()?.content
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

@@ -1,7 +1,11 @@
 package ai.bluefields.ppt2video.controller;
 
+import ai.bluefields.ppt2video.dto.SlideAnalysisDto;
 import ai.bluefields.ppt2video.dto.SlideDto;
+import ai.bluefields.ppt2video.dto.SlideNarrativeDto;
 import ai.bluefields.ppt2video.entity.Slide;
+import ai.bluefields.ppt2video.entity.SlideAnalysis;
+import ai.bluefields.ppt2video.entity.SlideNarrative;
 import ai.bluefields.ppt2video.repository.SlideRepository;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -143,29 +147,93 @@ public class SlideController {
    * @return the slide DTO
    */
   private SlideDto convertToDto(Slide slide) {
-    return SlideDto.builder()
-        .id(slide.getId().toString())
-        .presentationId(slide.getPresentation().getId().toString())
-        .slideNumber(slide.getSlideNumber())
-        .title(slide.getTitle())
-        .content(slide.getContent())
-        .contentText(slide.getContentText())
-        .speakerNotes(slide.getSpeakerNotes())
-        .layoutType(slide.getLayoutType())
-        .imagePath(slide.getImagePath())
-        .imageGeneratedAt(slide.getImageGeneratedAt())
-        .imageWidth(slide.getImageWidth())
-        .imageHeight(slide.getImageHeight())
-        .renderingStatus(
-            slide.getRenderingStatus() != null ? slide.getRenderingStatus().name() : null)
-        .renderingErrorMessage(slide.getRenderingErrorMessage())
-        .audioPath(slide.getAudioPath())
-        .videoPath(slide.getVideoPath())
-        .generatedNarrative(slide.getGeneratedNarrative())
-        .processingStatus(
-            slide.getProcessingStatus() != null ? slide.getProcessingStatus().name() : null)
-        .createdAt(slide.getCreatedAt())
-        .updatedAt(slide.getUpdatedAt())
+    var dto =
+        SlideDto.builder()
+            .id(slide.getId().toString())
+            .presentationId(slide.getPresentation().getId().toString())
+            .slideNumber(slide.getSlideNumber())
+            .title(slide.getTitle())
+            .content(slide.getContent())
+            .contentText(slide.getContentText())
+            .speakerNotes(slide.getSpeakerNotes())
+            .layoutType(slide.getLayoutType())
+            .imagePath(slide.getImagePath())
+            .imageGeneratedAt(slide.getImageGeneratedAt())
+            .imageWidth(slide.getImageWidth())
+            .imageHeight(slide.getImageHeight())
+            .renderingStatus(
+                slide.getRenderingStatus() != null ? slide.getRenderingStatus().name() : null)
+            .renderingErrorMessage(slide.getRenderingErrorMessage())
+            .audioPath(slide.getAudioPath())
+            .videoPath(slide.getVideoPath())
+            .generatedNarrative(slide.getGeneratedNarrative())
+            .processingStatus(
+                slide.getProcessingStatus() != null ? slide.getProcessingStatus().name() : null)
+            .createdAt(slide.getCreatedAt())
+            .updatedAt(slide.getUpdatedAt());
+
+    // Add slide analysis if available
+    if (slide.getSlideAnalysis() != null) {
+      dto.slideAnalysis(convertAnalysisToDto(slide.getSlideAnalysis()));
+    }
+
+    // Add active narrative if available
+    if (slide.getSlideNarratives() != null && !slide.getSlideNarratives().isEmpty()) {
+      slide.getSlideNarratives().stream()
+          .filter(n -> Boolean.TRUE.equals(n.getIsActive()))
+          .findFirst()
+          .ifPresent(narrative -> dto.slideNarrative(convertNarrativeToDto(narrative)));
+    }
+
+    return dto.build();
+  }
+
+  /**
+   * Converts a SlideAnalysis entity to SlideAnalysisDto.
+   *
+   * @param analysis the slide analysis entity
+   * @return the slide analysis DTO
+   */
+  private SlideAnalysisDto convertAnalysisToDto(SlideAnalysis analysis) {
+    return SlideAnalysisDto.builder()
+        .id(analysis.getId().toString())
+        .generalMessage(analysis.getGeneralMessage())
+        .visualConcepts(analysis.getVisualConcepts())
+        .keyPoints(analysis.getKeyPoints())
+        .dataInsights(analysis.getDataInsights())
+        .transitionContext(analysis.getTransitionContext())
+        .emphasisLevel(analysis.getEmphasisLevel())
+        .analysisMetadata(analysis.getAnalysisMetadata())
+        .modelUsed(analysis.getModelUsed())
+        .promptVersion(analysis.getPromptVersion())
+        .createdAt(analysis.getCreatedAt())
+        .updatedAt(analysis.getUpdatedAt())
+        .build();
+  }
+
+  /**
+   * Converts a SlideNarrative entity to SlideNarrativeDto.
+   *
+   * @param narrative the slide narrative entity
+   * @return the slide narrative DTO
+   */
+  private SlideNarrativeDto convertNarrativeToDto(SlideNarrative narrative) {
+    return SlideNarrativeDto.builder()
+        .id(narrative.getId().toString())
+        .narrativeText(narrative.getNarrativeText())
+        .emotionIndicators(narrative.getEmotionIndicators())
+        .avatarInstructions(narrative.getAvatarInstructions())
+        .speechMarkers(narrative.getSpeechMarkers())
+        .durationSeconds(narrative.getDurationSeconds())
+        .transitionPhrase(narrative.getTransitionPhrase())
+        .emphasisWords(narrative.getEmphasisWords())
+        .version(narrative.getVersion())
+        .isActive(narrative.getIsActive())
+        .generationMetadata(narrative.getGenerationMetadata())
+        .modelUsed(narrative.getModelUsed())
+        .promptVersion(narrative.getPromptVersion())
+        .createdAt(narrative.getCreatedAt())
+        .updatedAt(narrative.getUpdatedAt())
         .build();
   }
 }

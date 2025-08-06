@@ -14,6 +14,8 @@ export interface Presentation {
   processingStatus: ProcessingStatus;
   /** Selected narrative style for content generation */
   narrativeStyle?: string;
+  /** Deck analysis results */
+  deckAnalysis?: DeckAnalysis;
   /** ISO 8601 timestamp of creation */
   createdAt: string;
   /** ISO 8601 timestamp of last update */
@@ -48,6 +50,10 @@ export interface Slide {
   generatedNarrative?: string;
   /** Current processing status of the slide */
   processingStatus: SlideProcessingStatus;
+  /** AI analysis of the slide */
+  slideAnalysis?: SlideAnalysis;
+  /** AI-generated narrative with metadata */
+  slideNarrative?: SlideNarrative;
   /** ISO 8601 timestamp of creation */
   createdAt: string;
   /** ISO 8601 timestamp of last update */
@@ -59,12 +65,15 @@ export interface Slide {
  * Tracks progress through the conversion pipeline.
  */
 export type ProcessingStatus = 
-  | 'UPLOADED'    // Initial state after file upload
-  | 'PARSING'     // Extracting slides from PowerPoint
-  | 'PARSED'      // Parsing completed successfully
-  | 'RENDERING'   // Generating slide images
-  | 'COMPLETED'   // All processing finished
-  | 'FAILED';     // Processing error occurred
+  | 'UPLOADED'                   // Initial state after file upload
+  | 'PARSING'                    // Extracting slides from PowerPoint
+  | 'RENDERING_READY'            // Slides have been rendered and ready for analysis
+  | 'ANALYZING'                  // AI is analyzing the presentation content
+  | 'INTENT_ANALYSIS_COMPLETE'   // Intent analysis for deck and slides is complete
+  | 'NARRATIVE_COMPLETE'         // Narrative generation is complete
+  | 'GENERATING_CONTENT'         // Generating narratives and speech content
+  | 'COMPLETED'                  // All processing finished
+  | 'FAILED';                    // Processing error occurred
 
 /**
  * Processing status for individual slides.
@@ -182,6 +191,50 @@ export interface PresentationStatus {
 }
 
 /**
+ * Analysis status tracking.
+ */
+export interface AnalysisStatusDto {
+  /** Presentation ID */
+  presentationId: string;
+  /** Type of analysis */
+  analysisType: AnalysisType;
+  /** Current state */
+  state: AnalysisState;
+  /** Total items to process */
+  totalItems: number;
+  /** Completed items */
+  completedItems: number;
+  /** Failed items */
+  failedItems: number;
+  /** Start time */
+  startTime: string;
+  /** End time (if completed) */
+  endTime?: string;
+  /** Error messages */
+  errors: string[];
+  /** Status message */
+  message: string;
+}
+
+/**
+ * Analysis type enumeration.
+ */
+export type AnalysisType = 
+  | 'DECK_ANALYSIS'
+  | 'ALL_SLIDES_ANALYSIS' 
+  | 'ALL_NARRATIVES_GENERATION';
+
+/**
+ * Analysis state enumeration.
+ */
+export type AnalysisState = 
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED';
+
+/**
  * Re-render request.
  */
 export interface ReRenderRequest {
@@ -189,4 +242,214 @@ export interface ReRenderRequest {
   renderer: string;
   /** Force re-render even if already rendered */
   force: boolean;
+}
+
+/**
+ * Deck analysis result from AI.
+ * Contains overall presentation insights.
+ */
+export interface DeckAnalysis {
+  /** Unique identifier (UUID) */
+  id: string;
+  /** Overall story arc and message */
+  overallStory: string;
+  /** Communication intent and goals */
+  communicationIntent: string;
+  /** Key themes in JSON format */
+  keyThemes: string;
+  /** Target audience description */
+  targetAudience: string;
+  /** Overall tone of presentation */
+  tone: string;
+  /** Analysis metadata in JSON format */
+  analysisMetadata?: string;
+  /** Model used for analysis */
+  modelUsed: string;
+  /** Prompt version used */
+  promptVersion: string;
+  /** ISO 8601 timestamp of creation */
+  createdAt: string;
+  /** ISO 8601 timestamp of last update */
+  updatedAt: string;
+}
+
+/**
+ * Visual concept types for slide analysis.
+ */
+export type VisualConceptType = 
+  // Structural Concepts
+  | 'TIMELINE'
+  | 'PROCESS_FLOW'
+  | 'HIERARCHY'
+  | 'MATRIX'
+  | 'CYCLE'
+  // Comparison Concepts
+  | 'COMPARISON_TABLE'
+  | 'PROS_CONS'
+  | 'BEFORE_AFTER'
+  | 'VENN_DIAGRAM'
+  // Data Visualization
+  | 'BAR_CHART'
+  | 'LINE_CHART'
+  | 'PIE_CHART'
+  | 'SCATTER_PLOT'
+  | 'GAUGE_CHART'
+  | 'HEATMAP'
+  // Business Concepts
+  | 'SWOT_ANALYSIS'
+  | 'BUSINESS_MODEL'
+  | 'ROADMAP'
+  | 'KPI_DASHBOARD'
+  | 'FUNNEL'
+  | 'CUSTOMER_JOURNEY'
+  // Informational Concepts
+  | 'BULLET_LIST'
+  | 'DEFINITION'
+  | 'QUOTE'
+  | 'STATISTICS'
+  | 'ICON_GRID'
+  | 'INFOGRAPHIC'
+  // Relational Concepts
+  | 'MIND_MAP'
+  | 'NETWORK_DIAGRAM'
+  | 'FLOWCHART'
+  | 'DEPENDENCY_MAP'
+  // Specialized Concepts
+  | 'GANTT_CHART'
+  | 'RISK_MATRIX'
+  | 'PRICING_TABLE'
+  | 'TEAM_STRUCTURE'
+  | 'CALL_TO_ACTION'
+  | 'AGENDA'
+  | 'SUMMARY'
+  | 'QUESTION_SLIDE';
+
+/**
+ * Position of visual concept on slide.
+ */
+export interface ConceptPosition {
+  /** Vertical position */
+  vertical: 'TOP' | 'CENTER' | 'BOTTOM';
+  /** Horizontal position */
+  horizontal: 'LEFT' | 'CENTER' | 'RIGHT';
+}
+
+/**
+ * Visual concept in a slide with enhanced metadata.
+ */
+export interface VisualConcept {
+  /** Type of visual concept */
+  type: VisualConceptType;
+  /** Confidence level of detection */
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  /** Position on slide */
+  position: ConceptPosition;
+  /** Visual prominence */
+  prominence: 'PRIMARY' | 'SECONDARY' | 'SUPPORTING';
+  /** Concept-specific details */
+  details: Record<string, unknown>;
+}
+
+/**
+ * Slide analysis result from AI.
+ * Contains individual slide insights.
+ */
+export interface SlideAnalysis {
+  /** Unique identifier (UUID) */
+  id: string;
+  /** General message of the slide */
+  generalMessage: string;
+  /** Visual concepts in JSON format */
+  visualConcepts: string;
+  /** Key points in JSON format */
+  keyPoints: string;
+  /** Data insights if any */
+  dataInsights?: string;
+  /** Transition context */
+  transitionContext: string;
+  /** Emphasis level */
+  emphasisLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+  /** Analysis metadata in JSON format */
+  analysisMetadata?: string;
+  /** Model used for analysis */
+  modelUsed: string;
+  /** Prompt version used */
+  promptVersion: string;
+  /** ISO 8601 timestamp of creation */
+  createdAt: string;
+  /** ISO 8601 timestamp of last update */
+  updatedAt: string;
+}
+
+/**
+ * Emotion indicator for narrative.
+ */
+export interface EmotionIndicator {
+  /** Starting word index */
+  startWord: number;
+  /** Ending word index */
+  endWord: number;
+  /** Emotion type */
+  emotion: string;
+}
+
+/**
+ * Avatar rendering instructions.
+ */
+export interface AvatarInstructions {
+  /** Primary emotion for the slide */
+  primaryEmotion: string;
+  /** Gesture intensity level */
+  gestureIntensity: 'LOW' | 'MEDIUM' | 'HIGH';
+  /** Facial expression description */
+  facialExpression: string;
+}
+
+/**
+ * Speech markers for narrative delivery.
+ */
+export interface SpeechMarkers {
+  /** Pause locations */
+  pauses: Array<{
+    afterWord: number;
+    duration: 'short' | 'medium' | 'long';
+  }>;
+  /** Words to emphasize */
+  emphasis: string[];
+}
+
+/**
+ * Slide narrative generated by AI.
+ */
+export interface SlideNarrative {
+  /** Unique identifier (UUID) */
+  id: string;
+  /** The narrative text */
+  narrativeText: string;
+  /** Emotion indicators in JSON format */
+  emotionIndicators: string;
+  /** Avatar instructions in JSON format */
+  avatarInstructions: string;
+  /** Speech markers in JSON format */
+  speechMarkers: string;
+  /** Duration in seconds */
+  durationSeconds?: number;
+  /** Transition phrase to next slide */
+  transitionPhrase?: string;
+  /** Emphasis words in JSON format */
+  emphasisWords: string;
+  /** Version number */
+  version: number;
+  /** Whether this is the active narrative */
+  isActive: boolean;
+  /** Generation metadata in JSON format */
+  generationMetadata?: string;
+  /** Model used for generation */
+  modelUsed: string;
+  /** Prompt version used */
+  promptVersion: string;
+  /** ISO 8601 timestamp of creation */
+  createdAt: string;
+  /** ISO 8601 timestamp of last update */
+  updatedAt: string;
 }

@@ -111,15 +111,30 @@ export function UploadHistory({ className }: UploadHistoryProps) {
         icon: Loader2, 
         label: 'Parsing' 
       },
-      PARSED: { 
+      RENDERING_READY: { 
         variant: 'outline' as const, 
         icon: CheckCircle, 
-        label: 'Parsed' 
+        label: 'Ready for AI' 
       },
-      RENDERING: { 
+      ANALYZING: { 
         variant: 'default' as const, 
         icon: Loader2, 
-        label: 'Rendering' 
+        label: 'Analyzing' 
+      },
+      INTENT_ANALYSIS_COMPLETE: { 
+        variant: 'outline' as const, 
+        icon: CheckCircle, 
+        label: 'Analysis Complete' 
+      },
+      NARRATIVE_COMPLETE: { 
+        variant: 'outline' as const, 
+        icon: CheckCircle, 
+        label: 'Narratives Ready' 
+      },
+      GENERATING_CONTENT: { 
+        variant: 'default' as const, 
+        icon: Loader2, 
+        label: 'Generating Content' 
       },
       COMPLETED: { 
         variant: 'default' as const, 
@@ -134,12 +149,21 @@ export function UploadHistory({ className }: UploadHistoryProps) {
     };
 
     const config = statusConfig[status];
+    if (!config) {
+      // Fallback for any unknown status
+      return (
+        <Badge variant="outline">
+          <span>{status}</span>
+        </Badge>
+      );
+    }
+    
     const Icon = config.icon;
 
     return (
       <Badge variant={config.variant} className="flex items-center space-x-1">
         <Icon className={`h-3 w-3 ${
-          status === 'PARSING' || status === 'RENDERING' 
+          status === 'PARSING' || status === 'ANALYZING' || status === 'GENERATING_CONTENT'
             ? 'animate-spin' 
             : ''
         }`} />

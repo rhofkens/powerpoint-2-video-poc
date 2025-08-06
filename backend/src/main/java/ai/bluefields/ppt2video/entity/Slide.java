@@ -93,6 +93,12 @@ public class Slide {
   @OneToMany(mappedBy = "slide", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
   private List<SlideImage> slideImages = new ArrayList<>();
 
+  @OneToOne(mappedBy = "slide", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+  private SlideAnalysis slideAnalysis;
+
+  @OneToMany(mappedBy = "slide", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+  private List<SlideNarrative> slideNarratives = new ArrayList<>();
+
   /**
    * Enumeration of possible processing states for an individual slide. Tracks the slide's progress
    * through content generation and media creation.

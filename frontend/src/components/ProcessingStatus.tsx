@@ -2,21 +2,44 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, StopCircle, FileText } from "lucide-react";
+import { ProcessingStatus as PresentationProcessingStatus } from "@/types/presentation";
 
 interface ProcessingStatusProps {
   fileName: string;
   onStopAndRestart: () => void;
   progress?: number;
+  status?: PresentationProcessingStatus;
 }
 
-export function ProcessingStatus({ fileName, onStopAndRestart, progress = 0 }: ProcessingStatusProps) {
+export function ProcessingStatus({ fileName, onStopAndRestart, progress = 0, status }: ProcessingStatusProps) {
+  // Map status to steps with better granularity
+  const getStepFromStatus = (status?: PresentationProcessingStatus) => {
+    switch (status) {
+      case 'UPLOADED': return 0;
+      case 'PARSING': return 1;
+      case 'RENDERING_READY': return 2;
+      case 'ANALYZING': return 3;
+      case 'INTENT_ANALYSIS_COMPLETE': return 4;
+      case 'NARRATIVE_COMPLETE': return 5;
+      case 'GENERATING_CONTENT': return 6;
+      case 'COMPLETED': return 7;
+      default: return 0;
+    }
+  };
+
+  const currentStep = getStepFromStatus(status);
+  
   const processingSteps = [
-    { step: 1, name: "Parsing PowerPoint file", completed: progress > 20 },
-    { step: 2, name: "Extracting text and notes", completed: progress > 40 },
-    { step: 3, name: "Generating slide images", completed: progress > 60 },
-    { step: 4, name: "AI conceptual analysis", completed: progress > 80 },
-    { step: 5, name: "Creating narratives", completed: progress >= 100 }
+    { step: 1, name: "Parsing PowerPoint file", completed: currentStep > 1 },
+    { step: 2, name: "Rendering slide images", completed: currentStep > 2 },
+    { step: 3, name: "AI deck analysis", completed: currentStep > 3 },
+    { step: 4, name: "AI slide analysis", completed: currentStep > 4 },
+    { step: 5, name: "Generating narratives", completed: currentStep > 5 },
+    { step: 6, name: "Creating audio/video content", completed: currentStep > 6 }
   ];
+
+  // Calculate progress based on current step
+  const calculatedProgress = status === 'COMPLETED' ? 100 : (currentStep / 7) * 100;
 
   return (
     <div className="space-y-6">
@@ -42,9 +65,9 @@ export function ProcessingStatus({ fileName, onStopAndRestart, progress = 0 }: P
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>Overall Progress</span>
-              <span>{Math.round(progress)}%</span>
+              <span>{Math.round(calculatedProgress)}%</span>
             </div>
-            <Progress value={progress} className="h-2" />
+            <Progress value={calculatedProgress} className="h-2" />
           </div>
 
           {/* Processing Steps */}
@@ -57,7 +80,7 @@ export function ProcessingStatus({ fileName, onStopAndRestart, progress = 0 }: P
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
                   step.completed 
                     ? 'bg-success text-success-foreground' 
-                    : progress > (step.step - 1) * 20
+                    : currentStep === step.step
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground'
                 }`}>
@@ -68,7 +91,7 @@ export function ProcessingStatus({ fileName, onStopAndRestart, progress = 0 }: P
                 }`}>
                   {step.name}
                 </span>
-                {!step.completed && progress > (step.step - 1) * 20 && (
+                {!step.completed && currentStep === step.step && (
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
                 )}
               </div>

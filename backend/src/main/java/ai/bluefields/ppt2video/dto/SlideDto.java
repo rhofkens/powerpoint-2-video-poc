@@ -33,4 +33,6 @@ public class SlideDto {
   private String processingStatus;
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;
+  private SlideAnalysisDto slideAnalysis;
+  private SlideNarrativeDto slideNarrative;
 }

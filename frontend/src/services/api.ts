@@ -6,7 +6,12 @@ import {
   ApiErrorResponse, 
   UploadProgress,
   PresentationStatus,
-  ReRenderRequest
+  ReRenderRequest,
+  DeckAnalysis,
+  SlideAnalysis,
+  SlideNarrative,
+  AnalysisStatusDto,
+  AnalysisType
 } from '../types/presentation';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
@@ -236,6 +241,162 @@ class ApiService {
   async getRendererStatus(): Promise<Array<{ name: string; available: boolean }>> {
     const response = await this.axiosInstance.get<Array<{ name: string; available: boolean }>>('/renderers/status');
     return response.data;
+  }
+
+  /**
+   * Triggers AI analysis of an entire presentation deck.
+   * 
+   * @param presentationId - The UUID of the presentation
+   * @returns Promise resolving to deck analysis result
+   */
+  async analyzeDeck(presentationId: string): Promise<DeckAnalysis> {
+    const response = await this.axiosInstance.post<{ success: boolean; data: DeckAnalysis; message: string }>(
+      `/presentations/${presentationId}/analyze-deck`
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Gets the deck analysis for a presentation.
+   * 
+   * @param presentationId - The UUID of the presentation
+   * @returns Promise resolving to deck analysis if available
+   */
+  async getDeckAnalysis(presentationId: string): Promise<DeckAnalysis | null> {
+    try {
+      const response = await this.axiosInstance.get<{ success: boolean; data: DeckAnalysis; message: string }>(
+        `/presentations/${presentationId}/analysis`
+      );
+      return response.data.data;
+    } catch (error) {
+      if ((error as ApiError).status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Triggers AI analysis of a specific slide.
+   * 
+   * @param slideId - The UUID of the slide
+   * @param force - Whether to force re-analysis even if analysis exists
+   * @returns Promise resolving to slide analysis result
+   */
+  async analyzeSlide(slideId: string, force: boolean = false): Promise<SlideAnalysis> {
+    const response = await this.axiosInstance.post<{ success: boolean; data: SlideAnalysis; message: string }>(
+      `/slides/${slideId}/analyze${force ? '?force=true' : ''}`
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Gets the analysis for a slide.
+   * 
+   * @param slideId - The UUID of the slide
+   * @returns Promise resolving to slide analysis if available
+   */
+  async getSlideAnalysis(slideId: string): Promise<SlideAnalysis | null> {
+    try {
+      const response = await this.axiosInstance.get<{ success: boolean; data: SlideAnalysis; message: string }>(
+        `/slides/${slideId}/analysis`
+      );
+      return response.data.data;
+    } catch (error) {
+      if ((error as ApiError).status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Generates narrative for a slide.
+   * 
+   * @param slideId - The UUID of the slide
+   * @param style - The narrative style ('business', 'funny', 'cynical')
+   * @returns Promise resolving to generated narrative
+   */
+  async generateNarrative(slideId: string, style: string = 'business'): Promise<SlideNarrative> {
+    const response = await this.axiosInstance.post<{ success: boolean; data: SlideNarrative; message: string }>(
+      `/slides/${slideId}/generate-narrative`,
+      { style }
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Gets the narrative for a slide.
+   * 
+   * @param slideId - The UUID of the slide
+   * @returns Promise resolving to slide narrative if available
+   */
+  async getSlideNarrative(slideId: string): Promise<SlideNarrative | null> {
+    try {
+      const response = await this.axiosInstance.get<{ success: boolean; data: SlideNarrative; message: string }>(
+        `/slides/${slideId}/narrative`
+      );
+      return response.data.data;
+    } catch (error) {
+      if ((error as ApiError).status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Triggers AI analysis for all slides in a presentation.
+   * 
+   * @param presentationId - The UUID of the presentation
+   * @returns Promise resolving when analysis is initiated
+   */
+  async analyzeAllSlides(presentationId: string): Promise<void> {
+    await this.axiosInstance.post(`/presentations/${presentationId}/analyze-all-slides`);
+  }
+
+  /**
+   * Generates narratives for all slides in a presentation.
+   * 
+   * @param presentationId - The UUID of the presentation
+   * @param style - The narrative style ('business', 'funny', 'cynical')
+   * @returns Promise resolving when generation is initiated
+   */
+  async generateAllNarratives(presentationId: string, style: string = 'business'): Promise<void> {
+    console.log('[ApiService] Generating all narratives for:', presentationId, 'style:', style);
+    const response = await this.axiosInstance.post(`/presentations/${presentationId}/generate-all-narratives`, { style });
+    console.log('[ApiService] Generate all narratives response:', response.data);
+  }
+
+  /**
+   * Gets the complete narrative for all slides in a presentation.
+   * 
+   * @param presentationId - The UUID of the presentation
+   * @returns Promise resolving to a list of all slide narratives
+   */
+  async getCompleteNarrative(presentationId: string): Promise<SlideNarrative[]> {
+    const response = await this.axiosInstance.get<{ success: boolean; data: SlideNarrative[]; message: string }>(
+      `/presentations/${presentationId}/complete-narrative`
+    );
+    return response.data.data || [];
+  }
+
+  /**
+   * Gets the status of ongoing AI analysis operations.
+   * 
+   * @param presentationId - The UUID of the presentation
+   * @param type - Optional analysis type filter
+   * @returns Promise resolving to analysis status information
+   */
+  async getAnalysisStatus(presentationId: string, type?: AnalysisType): Promise<AnalysisStatusDto[]> {
+    const params = type ? { type } : {};
+    console.log('[ApiService] Getting analysis status for:', presentationId, 'type:', type);
+    const response = await this.axiosInstance.get<{ success: boolean; data: AnalysisStatusDto[]; message: string }>(
+      `/presentations/${presentationId}/analysis-status`,
+      { params }
+    );
+    console.log('[ApiService] Analysis status response:', response.data);
+    return response.data.data;
   }
 }
 

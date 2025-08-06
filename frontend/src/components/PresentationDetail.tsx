@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProcessingProgress } from './ProcessingProgress';
 import { SlidesGrid } from './SlidesGrid';
+import { AIAnalysisPanel } from './AIAnalysisPanel';
 import { usePresentationStatus } from '@/hooks/usePresentationStatus';
 import { usePresentationStore } from '@/store/presentationStore';
 import { ArrowLeft, FileText, Calendar, HardDrive } from "lucide-react";
@@ -134,6 +135,16 @@ export function PresentationDetail({ onBack }: PresentationDetailProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* AI Analysis Panel - Show when slides are rendered */}
+      {['RENDERING_READY', 'ANALYZING', 'INTENT_ANALYSIS_COMPLETE', 
+        'NARRATIVE_COMPLETE', 'GENERATING_CONTENT', 'COMPLETED'].includes(currentPresentation.processingStatus) && (
+        <AIAnalysisPanel 
+          presentationId={currentPresentation.id}
+          processingStatus={currentPresentation.processingStatus}
+          presentationTitle={currentPresentation.title}
+        />
+      )}
 
       {/* Processing Progress */}
       {isProcessing && status && (

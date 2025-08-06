@@ -1,8 +1,10 @@
 package ai.bluefields.ppt2video.repository;
 
 import ai.bluefields.ppt2video.entity.Presentation;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -11,5 +13,12 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface PresentationRepository extends JpaRepository<Presentation, UUID> {
-  // Custom query methods can be added here when needed
+
+  /**
+   * Find all presentations with their deck analysis eagerly loaded. This avoids the N+1 query
+   * problem when fetching presentations.
+   */
+  @Query(
+      "SELECT DISTINCT p FROM Presentation p LEFT JOIN FETCH p.deckAnalysis ORDER BY p.createdAt DESC")
+  List<Presentation> findAllWithDeckAnalysis();
 }

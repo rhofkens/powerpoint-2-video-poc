@@ -153,6 +153,43 @@ public class FileStorageService {
   }
 
   /**
+   * Stores a JSON string to a file in the prompts directory.
+   *
+   * @param presentationId the presentation UUID (optional)
+   * @param serviceName the name of the service generating the prompt
+   * @param filename the filename to use
+   * @param jsonContent the JSON content to store
+   * @return the path where the file was stored
+   */
+  public Path storePromptJson(
+      UUID presentationId, String serviceName, String filename, String jsonContent) {
+    try {
+      Path promptsDir;
+      if (presentationId != null) {
+        // Store with presentation: storage/presentations/{presentationId}/prompts/{serviceName}/
+        promptsDir =
+            Paths.get(
+                presentationsPath, presentationId.toString(), "prompts", serviceName.toLowerCase());
+      } else {
+        // Store globally: storage/prompts/{serviceName}/
+        promptsDir =
+            Paths.get(presentationsPath, "..", "prompts", serviceName.toLowerCase()).normalize();
+      }
+
+      Files.createDirectories(promptsDir);
+      Path filePath = promptsDir.resolve(filename);
+      Files.writeString(filePath, jsonContent);
+
+      log.debug("Stored prompt JSON at: {}", filePath);
+      return filePath;
+
+    } catch (IOException e) {
+      log.error("Failed to store prompt JSON: {}", e.getMessage());
+      throw new RuntimeException("Failed to store prompt JSON", e);
+    }
+  }
+
+  /**
    * Stores a presentation file with a specific ID.
    *
    * @param presentationId the presentation UUID

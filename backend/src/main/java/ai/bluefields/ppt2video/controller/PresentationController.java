@@ -1,5 +1,6 @@
 package ai.bluefields.ppt2video.controller;
 
+import ai.bluefields.ppt2video.dto.PresentationDto;
 import ai.bluefields.ppt2video.dto.PresentationUploadResponseDto;
 import ai.bluefields.ppt2video.entity.Presentation;
 import ai.bluefields.ppt2video.exception.FileSizeExceededException;
@@ -39,23 +40,10 @@ public class PresentationController {
   public ResponseEntity<?> getPresentations() {
     log.debug("Getting all presentations");
 
-    java.util.List<Presentation> presentations = presentationRepository.findAll();
+    java.util.List<Presentation> presentations = presentationRepository.findAllWithDeckAnalysis();
 
     // Convert to DTOs to avoid lazy loading issues
-    var presentationDtos =
-        presentations.stream()
-            .map(
-                p ->
-                    java.util.Map.of(
-                        "id", p.getId().toString(),
-                        "title", p.getTitle(),
-                        "originalFilename", p.getOriginalFilename(),
-                        "fileSize", p.getFileSize(),
-                        "status", p.getStatus().name(),
-                        "processingStatus", p.getProcessingStatus().name(),
-                        "createdAt", p.getCreatedAt(),
-                        "updatedAt", p.getUpdatedAt()))
-            .toList();
+    var presentationDtos = presentations.stream().map(PresentationDto::fromEntity).toList();
 
     return ResponseEntity.ok(presentationDtos);
   }
