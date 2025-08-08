@@ -12,8 +12,10 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.retry.support.RetryTemplate;
@@ -29,15 +31,25 @@ import org.springframework.util.MimeTypeUtils;
 @RequiredArgsConstructor
 public class OpenAIService {
 
-  private final OpenAiChatModel chatModel;
+  private final OpenAiChatModel chatModel; // Keep for backward compatibility
+
+  @Qualifier("visionChatModel")
+  private final ChatModel visionChatModel; // GPT-4o for vision tasks
+
+  @Qualifier("textChatModel")
+  private final ChatModel textChatModel; // GPT-5 for text generation
+
   private final RetryTemplate retryTemplate;
   private final FileStorageService fileStorageService;
   private final ObjectMapper objectMapper;
-  private ChatClient chatClient;
+  private ChatClient visionChatClient;
+  private ChatClient textChatClient;
 
   @PostConstruct
   public void init() {
-    this.chatClient = ChatClient.create(chatModel);
+    this.visionChatClient = ChatClient.create(visionChatModel);
+    this.textChatClient = ChatClient.create(textChatModel);
+    log.info("OpenAIService initialized with separate vision and text models");
   }
 
   @Value("${app.ai.analysis.timeout-seconds:60}")
@@ -87,6 +99,10 @@ public class OpenAIService {
   public String generateChatCompletion(
       String systemPrompt, String userPrompt, String serviceName, UUID presentationId) {
     long startTime = System.currentTimeMillis();
+    log.info(
+        "[TEXT MODEL REQUEST] Service: {}, PresentationId: {}",
+        serviceName != null ? serviceName : "unknown",
+        presentationId);
     log.debug(
         "Generating chat completion with system prompt length: {} and user prompt length: {}",
         systemPrompt.length(),
@@ -99,23 +115,29 @@ public class OpenAIService {
               log.debug("Retry attempt {} for chat completion", context.getRetryCount());
             }
 
-            log.debug("Sending chat request to OpenAI using ChatClient fluent API");
+            log.info(
+                "[TEXT MODEL - GPT-5] Processing request from service: {}",
+                serviceName != null ? serviceName : "unknown");
+            log.debug("Sending chat request to OpenAI using text model (GPT-5)");
 
             ChatResponse response =
-                chatClient.prompt().system(systemPrompt).user(userPrompt).call().chatResponse();
+                textChatClient.prompt().system(systemPrompt).user(userPrompt).call().chatResponse();
 
             String result = response.getResult().getOutput().getText();
             long duration = System.currentTimeMillis() - startTime;
 
-            log.debug(
-                "Chat completion successful - Response length: {} chars, Duration: {} ms",
+            log.info(
+                "[TEXT MODEL - GPT-5] Completion successful - Response length: {} chars, Duration: {} ms",
                 result.length(),
                 duration);
+            log.debug(
+                "Text response first 100 chars: {}",
+                result.substring(0, Math.min(result.length(), 100)));
 
             // Log token usage if available
             if (response.getMetadata() != null && response.getMetadata().getUsage() != null) {
-              log.debug(
-                  "Token usage - Prompt: {}, Generation: {}, Total: {}",
+              log.info(
+                  "[TEXT MODEL - GPT-5] Token usage - Prompt: {}, Generation: {}, Total: {}",
                   response.getMetadata().getUsage().getPromptTokens(),
                   response.getMetadata().getUsage().getCompletionTokens(),
                   response.getMetadata().getUsage().getTotalTokens());
@@ -169,6 +191,11 @@ public class OpenAIService {
       String serviceName,
       UUID presentationId) {
     long startTime = System.currentTimeMillis();
+    log.info(
+        "[VISION MODEL REQUEST] Service: {}, PresentationId: {}, ImageType: {}",
+        serviceName != null ? serviceName : "unknown",
+        presentationId,
+        mimeType);
     log.debug(
         "Generating vision completion with image of type: {}, image size: {} bytes",
         mimeType,
@@ -199,8 +226,13 @@ public class OpenAIService {
             }
           };
 
-      // Use ChatClient fluent API for vision request
-      log.debug("Sending vision request using ChatClient fluent API");
+      // Use vision-specific ChatClient for vision request
+      log.info(
+          "[VISION MODEL REQUEST] Service: {}, PresentationId: {}, ImageType: {}",
+          serviceName != null ? serviceName : "unknown",
+          presentationId,
+          mimeType);
+      log.debug("Sending vision request with configured vision model and image type: {}", mimeType);
 
       return retryTemplate.execute(
           context -> {
@@ -209,7 +241,7 @@ public class OpenAIService {
             }
 
             ChatResponse response =
-                chatClient
+                visionChatClient
                     .prompt()
                     .system(systemPrompt)
                     .user(
@@ -220,15 +252,26 @@ public class OpenAIService {
             String result = response.getResult().getOutput().getText();
             long duration = System.currentTimeMillis() - startTime;
 
-            log.debug(
-                "Vision completion successful - Response length: {} chars, Duration: {} ms",
+            // Log the actual model used from the response metadata
+            String actualModel =
+                response.getMetadata() != null && response.getMetadata().getModel() != null
+                    ? response.getMetadata().getModel()
+                    : "unknown";
+
+            log.info(
+                "[VISION MODEL - {}] Completion successful - Response length: {} chars, Duration: {} ms",
+                actualModel,
                 result.length(),
                 duration);
+            log.debug(
+                "Vision response first 100 chars: {}",
+                result.substring(0, Math.min(result.length(), 100)));
 
             // Log token usage if available
             if (response.getMetadata() != null && response.getMetadata().getUsage() != null) {
-              log.debug(
-                  "Token usage - Prompt: {}, Generation: {}, Total: {}",
+              log.info(
+                  "[VISION MODEL - {}] Token usage - Prompt: {}, Generation: {}, Total: {}",
+                  actualModel,
                   response.getMetadata().getUsage().getPromptTokens(),
                   response.getMetadata().getUsage().getCompletionTokens(),
                   response.getMetadata().getUsage().getTotalTokens());

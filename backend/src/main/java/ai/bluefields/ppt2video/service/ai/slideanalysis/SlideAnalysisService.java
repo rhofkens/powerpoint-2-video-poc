@@ -2,9 +2,12 @@ package ai.bluefields.ppt2video.service.ai.slideanalysis;
 
 import ai.bluefields.ppt2video.entity.Slide;
 import ai.bluefields.ppt2video.entity.SlideAnalysis;
+import ai.bluefields.ppt2video.entity.SlideType;
 import ai.bluefields.ppt2video.repository.SlideAnalysisRepository;
 import ai.bluefields.ppt2video.repository.SlideRepository;
+import ai.bluefields.ppt2video.service.SlideTypeDetector;
 import ai.bluefields.ppt2video.service.ai.OpenAIService;
+import ai.bluefields.ppt2video.util.ContentMetrics;
 import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
@@ -29,6 +32,7 @@ public class SlideAnalysisService {
   private final SlideImageService imageService;
   private final SlideAnalysisPromptService promptService;
   private final SlideAnalysisParsingService parsingService;
+  private final SlideTypeDetector slideTypeDetector;
 
   @Value("${app.ai.slide-analysis.enabled:true}")
   private boolean slideAnalysisEnabled;
@@ -117,12 +121,24 @@ public class SlideAnalysisService {
 
   /** Perform the actual slide analysis. */
   private SlideAnalysis performAnalysis(Slide slide) throws IOException {
+    // Calculate and store content word count
+    String contentText = slide.getContentText();
+    if (contentText != null) {
+      int wordCount = ContentMetrics.calculateWordCount(contentText);
+      slide.setContentWordCount(wordCount);
+      log.debug("Calculated word count for slide {}: {} words", slide.getSlideNumber(), wordCount);
+    }
+
     // Get slide image for multimodal analysis
     String imageBase64 = imageService.getSlideImageBase64(slide);
     String mimeType = imageService.getImageMimeType();
 
     // Get presentation context
     int totalSlides = slideRepository.countByPresentationId(slide.getPresentation().getId());
+
+    // Detect slide type
+    SlideType slideType = slideTypeDetector.detectSlideType(slide, totalSlides);
+    log.info("Detected slide type for slide {}: {}", slide.getSlideNumber(), slideType);
 
     // Prepare slide data
     Map<String, Object> slideData = promptService.prepareSlideData(slide, totalSlides);
@@ -133,9 +149,13 @@ public class SlideAnalysisService {
 
     // Parse and save analysis
     SlideAnalysis analysis = parsingService.parseSlideAnalysis(analysisResult, slide);
+    analysis.setSlideType(slideType);
     analysis = slideAnalysisRepository.save(analysis);
 
-    log.info("Completed slide analysis for slide: {}", slide.getId());
+    // Save updated slide with word count
+    slideRepository.save(slide);
+
+    log.info("Completed slide analysis for slide: {} (type: {})", slide.getId(), slideType);
     return analysis;
   }
 

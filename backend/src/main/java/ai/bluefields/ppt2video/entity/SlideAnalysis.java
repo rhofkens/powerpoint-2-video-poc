@@ -52,6 +52,10 @@ public class SlideAnalysis {
   @Column(name = "emphasis_level")
   private String emphasisLevel;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "slide_type")
+  private SlideType slideType;
+
   @Column(name = "analysis_metadata", columnDefinition = "JSONB")
   @JdbcTypeCode(SqlTypes.JSON)
   private String analysisMetadata;

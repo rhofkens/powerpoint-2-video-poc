@@ -167,6 +167,7 @@ public class SlideController {
             .audioPath(slide.getAudioPath())
             .videoPath(slide.getVideoPath())
             .generatedNarrative(slide.getGeneratedNarrative())
+            .contentWordCount(slide.getContentWordCount())
             .processingStatus(
                 slide.getProcessingStatus() != null ? slide.getProcessingStatus().name() : null)
             .createdAt(slide.getCreatedAt())
@@ -203,6 +204,7 @@ public class SlideController {
         .dataInsights(analysis.getDataInsights())
         .transitionContext(analysis.getTransitionContext())
         .emphasisLevel(analysis.getEmphasisLevel())
+        .slideType(analysis.getSlideType() != null ? analysis.getSlideType().name() : null)
         .analysisMetadata(analysis.getAnalysisMetadata())
         .modelUsed(analysis.getModelUsed())
         .promptVersion(analysis.getPromptVersion())
@@ -225,6 +227,7 @@ public class SlideController {
         .avatarInstructions(narrative.getAvatarInstructions())
         .speechMarkers(narrative.getSpeechMarkers())
         .durationSeconds(narrative.getDurationSeconds())
+        .targetDurationSeconds(narrative.getTargetDurationSeconds())
         .transitionPhrase(narrative.getTransitionPhrase())
         .emphasisWords(narrative.getEmphasisWords())
         .version(narrative.getVersion())

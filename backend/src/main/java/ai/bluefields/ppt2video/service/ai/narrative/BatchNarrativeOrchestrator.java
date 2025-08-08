@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Orchestrator service for batch narrative generation. Handles async processing of multiple slides
@@ -29,13 +28,13 @@ public class BatchNarrativeOrchestrator {
   private final AnalysisStatusService analysisStatusService;
 
   /**
-   * Generate narratives for all slides in a presentation asynchronously.
+   * Generate narratives for all slides in a presentation asynchronously. Each narrative is
+   * generated in its own transaction to allow real-time progress visibility.
    *
    * @param presentationId The ID of the presentation
    * @param style The narrative style to use
    */
   @Async("virtualThreadExecutor")
-  @Transactional
   public void generateAllNarratives(UUID presentationId, String style) {
     log.info("=== STARTING BATCH NARRATIVE GENERATION ===");
     log.info("Presentation ID: {}", presentationId);

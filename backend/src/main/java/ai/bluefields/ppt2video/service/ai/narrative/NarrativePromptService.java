@@ -1,5 +1,6 @@
 package ai.bluefields.ppt2video.service.ai.narrative;
 
+import ai.bluefields.ppt2video.entity.SlideType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -30,15 +31,59 @@ public class NarrativePromptService {
   }
 
   /**
-   * Build user prompt for narrative generation.
+   * Build user prompt for narrative generation with default duration.
    *
    * @param contextDataJson The context data in JSON format
    * @return The formatted user prompt
    */
   public String buildUserPrompt(String contextDataJson) {
+    // Default duration range for backward compatibility
+    return buildUserPrompt(contextDataJson, 30, 60, SlideType.CONTENT);
+  }
+
+  /**
+   * Build user prompt for narrative generation with specific duration requirements.
+   *
+   * @param contextDataJson The context data in JSON format
+   * @param minDurationSeconds Minimum duration in seconds
+   * @param maxDurationSeconds Maximum duration in seconds
+   * @return The formatted user prompt
+   */
+  public String buildUserPrompt(
+      String contextDataJson, int minDurationSeconds, int maxDurationSeconds) {
+    return buildUserPrompt(
+        contextDataJson, minDurationSeconds, maxDurationSeconds, SlideType.CONTENT);
+  }
+
+  /**
+   * Build user prompt for narrative generation with specific duration and slide type.
+   *
+   * @param contextDataJson The context data in JSON format
+   * @param minDurationSeconds Minimum duration in seconds
+   * @param maxDurationSeconds Maximum duration in seconds
+   * @param slideType The type of slide being narrated
+   * @return The formatted user prompt
+   */
+  public String buildUserPrompt(
+      String contextDataJson, int minDurationSeconds, int maxDurationSeconds, SlideType slideType) {
+    // Calculate approximate word count for the duration
+    // Assuming 150 words per minute speaking pace
+    int minWords = (minDurationSeconds * 150) / 60;
+    int maxWords = (maxDurationSeconds * 150) / 60;
+
+    String slideTypeGuidance =
+        getSlideTypeGuidance(slideType, minDurationSeconds, maxDurationSeconds);
+
     return String.format(
         """
         Generate an engaging narrative for the CURRENT SLIDE ONLY, using the provided context for continuity.
+
+        %s
+
+        CRITICAL DURATION REQUIREMENT:
+        The narrative MUST be EXACTLY %d-%d seconds when spoken aloud at a normal pace (150 words per minute).
+        This translates to approximately %d-%d words.
+        IMPORTANT: Count the words in your response to ensure it matches this requirement!
 
         IMPORTANT: Focus your narrative exclusively on the "currentSlide" section below.
         The "previousSlide" and "nextSlide" are provided for context only - do not narrate them.
@@ -50,11 +95,11 @@ public class NarrativePromptService {
         Create a JSON object with the following structure:
 
         Required fields:
-        - narrativeText: The main narrative text to be spoken for the CURRENT slide
+        - narrativeText: The main narrative text to be spoken for the CURRENT slide (MUST be %d-%d words)
         - emotionIndicators: Array of emotion markers throughout the narrative
         - avatarInstructions: Instructions for avatar rendering
         - speechMarkers: Guidance for speech synthesis
-        - durationSeconds: Target duration in seconds (typically 30-60)
+        - durationSeconds: Target duration in seconds (MUST be between %d and %d)
         - transitionPhrase: Optional phrase to connect to the next slide
 
         EXAMPLE OUTPUT:
@@ -85,7 +130,82 @@ public class NarrativePromptService {
           "transitionPhrase": "Now let's explore..."
         }
         """,
-        contextDataJson);
+        slideTypeGuidance,
+        minDurationSeconds,
+        maxDurationSeconds,
+        minWords,
+        maxWords,
+        contextDataJson,
+        minWords,
+        maxWords,
+        minDurationSeconds,
+        maxDurationSeconds);
+  }
+
+  /**
+   * Get slide type-specific guidance for narrative generation.
+   *
+   * @param slideType The type of slide
+   * @param minDurationSeconds Minimum duration in seconds
+   * @param maxDurationSeconds Maximum duration in seconds
+   * @return Guidance text for the specific slide type
+   */
+  private String getSlideTypeGuidance(
+      SlideType slideType, int minDurationSeconds, int maxDurationSeconds) {
+    switch (slideType) {
+      case INTRO:
+        return String.format(
+            """
+            SLIDE TYPE: INTRODUCTION SLIDE
+            This is the opening slide that sets the stage for the entire presentation.
+            Generate a %d-%d second narrative that:
+            - Welcomes the audience warmly
+            - Introduces the topic with enthusiasm
+            - Sets expectations for what's to come
+            - Creates engagement from the start
+            Even if the slide has minimal text, provide rich context and background.""",
+            minDurationSeconds, maxDurationSeconds);
+
+      case SEPARATOR:
+        return String.format(
+            """
+            SLIDE TYPE: SECTION SEPARATOR
+            This is a transition slide between major sections.
+            Generate a BRIEF %d-%d second narrative that:
+            - Smoothly transitions from the previous section
+            - Introduces the upcoming section
+            - Maintains presentation flow
+            - Keeps the audience engaged during the transition
+            Be concise and focused on the transition.""",
+            minDurationSeconds, maxDurationSeconds);
+
+      case THANK_YOU:
+        return String.format(
+            """
+            SLIDE TYPE: CLOSING/THANK YOU SLIDE
+            This is the conclusion slide.
+            Generate a CONCISE %d-%d second narrative that:
+            - Summarizes key takeaways briefly
+            - Thanks the audience sincerely
+            - Ends on a memorable note
+            - Invites questions or next steps if appropriate
+            Keep it brief and impactful.""",
+            minDurationSeconds, maxDurationSeconds);
+
+      case CONTENT:
+      default:
+        return String.format(
+            """
+            SLIDE TYPE: CONTENT SLIDE
+            This is a standard content slide with information to convey.
+            Generate a %d-%d second narrative that:
+            - Explains the content clearly and engagingly
+            - Provides appropriate detail based on the text density
+            - Connects to the overall presentation theme
+            - Maintains audience interest
+            Match the narrative length to the content amount.""",
+            minDurationSeconds, maxDurationSeconds);
+    }
   }
 
   /**
@@ -136,7 +256,8 @@ public class NarrativePromptService {
         3. Add natural transitions when referencing other slides
         4. Include pauses and emphasis markers for better delivery
         5. Consider the target audience and overall tone
-        6. Make the narrative 30-60 seconds when spoken (approximately 75-150 words)
+        6. CRITICAL: Respect the exact duration requirements specified in the prompt
+        7. Use concise language for short durations, more detail for longer durations
 
         Emotional indicators to use:
         - neutral: Default professional tone
@@ -160,7 +281,8 @@ public class NarrativePromptService {
         3. Include comedic timing with strategic pauses and emphasis
         4. Keep the humor professional and accessible to a business audience
         5. Include appropriate emotional indicators (playful, amused, excited, surprised)
-        6. Make the narrative 30-60 seconds when spoken (approximately 75-150 words)
+        6. CRITICAL: Respect the exact duration requirements specified in the prompt
+        7. Balance humor with content - shorter durations need punchier jokes
 
         Emotional indicators to use:
         - playful: Light, fun delivery
@@ -184,7 +306,8 @@ public class NarrativePromptService {
         3. Use dry humor and sardonic observations
         4. Include reality checks and "let's be honest" moments
         5. Remain professional despite the cynical perspective
-        6. Make the narrative 30-60 seconds when spoken (approximately 75-150 words)
+        6. CRITICAL: Respect the exact duration requirements specified in the prompt
+        7. Adjust cynicism intensity based on duration - brief for short, elaborate for long
 
         Emotional indicators to use:
         - skeptical: Questioning, doubtful tone

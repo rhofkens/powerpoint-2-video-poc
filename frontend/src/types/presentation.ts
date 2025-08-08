@@ -369,6 +369,8 @@ export interface SlideAnalysis {
   transitionContext: string;
   /** Emphasis level */
   emphasisLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+  /** Type of slide */
+  slideType?: 'INTRO' | 'CONTENT' | 'SEPARATOR' | 'THANK_YOU' | 'UNKNOWN';
   /** Analysis metadata in JSON format */
   analysisMetadata?: string;
   /** Model used for analysis */
@@ -434,6 +436,8 @@ export interface SlideNarrative {
   speechMarkers: string;
   /** Duration in seconds */
   durationSeconds?: number;
+  /** Target duration in seconds for the narrative */
+  targetDurationSeconds?: number;
   /** Transition phrase to next slide */
   transitionPhrase?: string;
   /** Emphasis words in JSON format */

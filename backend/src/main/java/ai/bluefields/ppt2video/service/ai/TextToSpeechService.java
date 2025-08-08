@@ -1,0 +1,348 @@
+package ai.bluefields.ppt2video.service.ai;
+
+import ai.bluefields.ppt2video.entity.SlideNarrative;
+import ai.bluefields.ppt2video.entity.SlideSpeech;
+import ai.bluefields.ppt2video.repository.SlideNarrativeRepository;
+import ai.bluefields.ppt2video.repository.SlideSpeechRepository;
+import ai.bluefields.ppt2video.service.FileStorageService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
+
+/**
+ * Service for converting text to speech using ElevenLabs API. Handles TTS generation with
+ * timestamps and request stitching for better quality.
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class TextToSpeechService {
+
+  private final RestTemplate restTemplate = new RestTemplate();
+  private final ObjectMapper objectMapper;
+  private final FileStorageService fileStorageService;
+  private final SlideSpeechRepository slideSpeechRepository;
+  private final SlideNarrativeRepository slideNarrativeRepository;
+
+  @Value("${app.elevenlabs.api-key}")
+  private String apiKey;
+
+  @Value("${app.elevenlabs.api-url:https://api.elevenlabs.io/v1}")
+  private String apiUrl;
+
+  @Value("${app.elevenlabs.model:eleven_multilingual_v2}")
+  private String defaultModel;
+
+  @Value("${app.elevenlabs.voice.business:NNl6r8mD7vthiJatiJt1}")
+  private String businessVoiceId;
+
+  @Value("${app.elevenlabs.voice.funny:1SM7GgM6IMuvQlz2BwM3}")
+  private String funnyVoiceId;
+
+  @Value("${app.elevenlabs.voice.cynical:exsUS4vynmxd379XN4yO}")
+  private String cynicalVoiceId;
+
+  @Value("${app.elevenlabs.voice-settings.stability:0.5}")
+  private double stability;
+
+  @Value("${app.elevenlabs.voice-settings.similarity-boost:0.75}")
+  private double similarityBoost;
+
+  @Value("${app.elevenlabs.voice-settings.style:0.5}")
+  private double style;
+
+  @Value("${app.elevenlabs.voice-settings.use-speaker-boost:true}")
+  private boolean useSpeakerBoost;
+
+  @Value("${app.elevenlabs.enable-request-stitching:true}")
+  private boolean enableRequestStitching;
+
+  @Value("${app.elevenlabs.output-format:mp3_44100_128}")
+  private String outputFormat;
+
+  /**
+   * Generates speech for a slide narrative with timestamps.
+   *
+   * @param narrativeId the ID of the narrative to convert
+   * @param narrativeStyle the style of narrative (business, funny, cynical)
+   * @param forceRegenerate whether to force regeneration even if speech exists
+   * @return the generated SlideSpeech entity
+   */
+  @Transactional
+  public SlideSpeech generateSpeech(
+      UUID narrativeId, String narrativeStyle, boolean forceRegenerate) {
+    log.info(
+        "Starting TTS generation for narrative: {} with style: {}", narrativeId, narrativeStyle);
+
+    // Get the narrative
+    SlideNarrative narrative =
+        slideNarrativeRepository
+            .findById(narrativeId)
+            .orElseThrow(() -> new IllegalArgumentException("Narrative not found: " + narrativeId));
+
+    // Check if speech already exists
+    if (!forceRegenerate) {
+      Optional<SlideSpeech> existingSpeech =
+          slideSpeechRepository.findBySlideNarrativeId(narrativeId);
+      if (existingSpeech.isPresent()) {
+        log.info("Speech already exists for narrative: {}", narrativeId);
+        return existingSpeech.get();
+      }
+    }
+
+    try {
+      // Select voice based on style
+      String voiceId = selectVoiceForStyle(narrativeStyle);
+
+      // Prepare the request
+      String requestId = enableRequestStitching ? UUID.randomUUID().toString() : null;
+      TTSResponse response = callElevenLabsAPI(narrative.getNarrativeText(), voiceId, requestId);
+
+      // Store the audio file
+      String audioPath =
+          storeAudioFile(
+              narrative.getSlide().getPresentation().getId(),
+              narrative.getSlide().getId(),
+              response.getAudioData());
+
+      // Create and save SlideSpeech entity
+      SlideSpeech slideSpeech = new SlideSpeech();
+      slideSpeech.setSlideNarrative(narrative);
+      slideSpeech.setSlide(narrative.getSlide());
+      slideSpeech.setPresentation(narrative.getSlide().getPresentation());
+      slideSpeech.setAudioFilePath(audioPath);
+      slideSpeech.setVoiceId(voiceId);
+      slideSpeech.setVoiceStyle(narrativeStyle);
+      slideSpeech.setModelUsed(defaultModel);
+      slideSpeech.setDurationSeconds(response.getDurationSeconds());
+      slideSpeech.setTimingData(objectMapper.writeValueAsString(response.getTimestamps()));
+      slideSpeech.setRequestId(requestId);
+      slideSpeech.setOutputFormat(outputFormat);
+
+      // Update the narrative's duration with the actual TTS duration
+      narrative.setDurationSeconds((int) Math.ceil(response.getDurationSeconds()));
+      slideNarrativeRepository.save(narrative);
+
+      // Add generation metadata
+      Map<String, Object> metadata = new HashMap<>();
+      metadata.put("stability", stability);
+      metadata.put("similarity_boost", similarityBoost);
+      metadata.put("style", style);
+      metadata.put("use_speaker_boost", useSpeakerBoost);
+      metadata.put("characters_processed", response.getCharactersProcessed());
+      slideSpeech.setGenerationMetadata(objectMapper.writeValueAsString(metadata));
+
+      slideSpeech = slideSpeechRepository.save(slideSpeech);
+
+      log.info(
+          "Successfully generated speech for narrative: {}, duration: {} seconds",
+          narrativeId,
+          response.getDurationSeconds());
+
+      return slideSpeech;
+
+    } catch (Exception e) {
+      log.error("Failed to generate speech for narrative: {}", narrativeId, e);
+      throw new RuntimeException("Failed to generate speech: " + e.getMessage(), e);
+    }
+  }
+
+  /** Calls the ElevenLabs API to generate speech with timestamps. */
+  private TTSResponse callElevenLabsAPI(String text, String voiceId, String requestId)
+      throws IOException {
+    String url = apiUrl + "/text-to-speech/" + voiceId + "/with-timestamps";
+
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(MediaType.APPLICATION_JSON);
+    headers.set("xi-api-key", apiKey);
+    if (requestId != null) {
+      headers.set("xi-request-id", requestId);
+    }
+
+    // Build request body
+    ObjectNode requestBody = objectMapper.createObjectNode();
+    requestBody.put("text", text);
+    requestBody.put("model_id", defaultModel);
+
+    // Voice settings
+    ObjectNode voiceSettings = objectMapper.createObjectNode();
+    voiceSettings.put("stability", stability);
+    voiceSettings.put("similarity_boost", similarityBoost);
+    voiceSettings.put("style", style);
+    voiceSettings.put("use_speaker_boost", useSpeakerBoost);
+    requestBody.set("voice_settings", voiceSettings);
+
+    requestBody.put("output_format", outputFormat);
+
+    HttpEntity<String> request = new HttpEntity<>(requestBody.toString(), headers);
+
+    try {
+      @SuppressWarnings("rawtypes")
+      ResponseEntity<Map> response =
+          restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+
+      if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> responseBody = response.getBody();
+
+        // Log the response structure for debugging
+        log.info("ElevenLabs API response keys: {}", responseBody.keySet());
+        if (responseBody.containsKey("alignment")) {
+          @SuppressWarnings("unchecked")
+          Map<String, Object> alignment = (Map<String, Object>) responseBody.get("alignment");
+          log.info("Alignment keys: {}", alignment != null ? alignment.keySet() : "null");
+        }
+        if (responseBody.containsKey("normalized_alignment")) {
+          @SuppressWarnings("unchecked")
+          Map<String, Object> normalizedAlignment =
+              (Map<String, Object>) responseBody.get("normalized_alignment");
+          log.info(
+              "Normalized alignment keys: {}",
+              normalizedAlignment != null ? normalizedAlignment.keySet() : "null");
+        }
+
+        // Extract audio data (base64 encoded)
+        String audioBase64 = (String) responseBody.get("audio_base64");
+        byte[] audioData = Base64.getDecoder().decode(audioBase64);
+
+        // Extract timestamps from alignment data
+        List<Map<String, Object>> timestamps = new ArrayList<>();
+        double duration = 0;
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> alignment =
+            (Map<String, Object>) responseBody.get("normalized_alignment");
+        if (alignment == null) {
+          alignment = (Map<String, Object>) responseBody.get("alignment");
+        }
+
+        if (alignment != null) {
+          @SuppressWarnings("unchecked")
+          List<String> characters = (List<String>) alignment.get("characters");
+          @SuppressWarnings("unchecked")
+          List<Number> startTimes = (List<Number>) alignment.get("character_start_times_seconds");
+          @SuppressWarnings("unchecked")
+          List<Number> endTimes = (List<Number>) alignment.get("character_end_times_seconds");
+
+          if (characters != null && startTimes != null && endTimes != null) {
+            int size = Math.min(characters.size(), Math.min(startTimes.size(), endTimes.size()));
+            for (int i = 0; i < size; i++) {
+              Map<String, Object> timestamp = new HashMap<>();
+              timestamp.put("character", characters.get(i));
+              timestamp.put("start_time", startTimes.get(i).doubleValue());
+              timestamp.put("end_time", endTimes.get(i).doubleValue());
+              timestamps.add(timestamp);
+            }
+
+            // Calculate duration from the last character's end time
+            if (!endTimes.isEmpty()) {
+              duration = endTimes.get(endTimes.size() - 1).doubleValue();
+              log.info(
+                  "Calculated TTS duration: {} seconds from {} timestamps",
+                  duration,
+                  endTimes.size());
+            }
+          } else {
+            log.warn(
+                "Missing alignment data - characters: {}, startTimes: {}, endTimes: {}",
+                characters != null,
+                startTimes != null,
+                endTimes != null);
+          }
+        } else {
+          log.warn("No alignment data found in ElevenLabs response");
+        }
+
+        return new TTSResponse(audioData, timestamps, duration, text.length());
+      } else {
+        throw new RuntimeException(
+            "Unexpected response from ElevenLabs API: " + response.getStatusCode());
+      }
+
+    } catch (HttpClientErrorException e) {
+      log.error("ElevenLabs API error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+      throw new RuntimeException("ElevenLabs API error: " + e.getMessage(), e);
+    }
+  }
+
+  /** Stores the audio file on disk. */
+  private String storeAudioFile(UUID presentationId, UUID slideId, byte[] audioData)
+      throws IOException {
+    Path presentationDir =
+        Paths.get(fileStorageService.createPresentationDirectory(presentationId).toString());
+    Path audioDir = presentationDir.resolve("audio");
+    Files.createDirectories(audioDir);
+
+    String filename =
+        String.format("slide_%s_%s.mp3", slideId.toString(), System.currentTimeMillis());
+    Path audioPath = audioDir.resolve(filename);
+
+    Files.write(
+        audioPath, audioData, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+
+    log.debug("Stored audio file at: {}", audioPath);
+    return audioPath.toAbsolutePath().toString();
+  }
+
+  /** Selects the appropriate voice ID based on narrative style. */
+  private String selectVoiceForStyle(String style) {
+    if (style == null) {
+      return businessVoiceId;
+    }
+
+    return switch (style.toLowerCase()) {
+      case "funny" -> funnyVoiceId;
+      case "cynical" -> cynicalVoiceId;
+      case "business" -> businessVoiceId;
+      default -> businessVoiceId;
+    };
+  }
+
+  /** Inner class to hold TTS response data. */
+  private static class TTSResponse {
+    private final byte[] audioData;
+    private final List<Map<String, Object>> timestamps;
+    private final double durationSeconds;
+    private final int charactersProcessed;
+
+    public TTSResponse(
+        byte[] audioData,
+        List<Map<String, Object>> timestamps,
+        double durationSeconds,
+        int charactersProcessed) {
+      this.audioData = audioData;
+      this.timestamps = timestamps;
+      this.durationSeconds = durationSeconds;
+      this.charactersProcessed = charactersProcessed;
+    }
+
+    public byte[] getAudioData() {
+      return audioData;
+    }
+
+    public List<Map<String, Object>> getTimestamps() {
+      return timestamps;
+    }
+
+    public double getDurationSeconds() {
+      return durationSeconds;
+    }
+
+    public int getCharactersProcessed() {
+      return charactersProcessed;
+    }
+  }
+}

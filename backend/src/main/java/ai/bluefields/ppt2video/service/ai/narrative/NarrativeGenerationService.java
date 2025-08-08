@@ -2,8 +2,11 @@ package ai.bluefields.ppt2video.service.ai.narrative;
 
 import ai.bluefields.ppt2video.entity.Slide;
 import ai.bluefields.ppt2video.entity.SlideNarrative;
+import ai.bluefields.ppt2video.entity.SlideType;
+import ai.bluefields.ppt2video.model.DurationRange;
 import ai.bluefields.ppt2video.repository.SlideNarrativeRepository;
 import ai.bluefields.ppt2video.repository.SlideRepository;
+import ai.bluefields.ppt2video.service.NarrativeLengthCalculator;
 import ai.bluefields.ppt2video.service.ai.OpenAIService;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +30,7 @@ public class NarrativeGenerationService {
   private final NarrativePromptService promptService;
   private final NarrativeParsingService parsingService;
   private final NarrativeContextService contextService;
+  private final NarrativeLengthCalculator lengthCalculator;
 
   @Value("${app.ai.narrative-generation.enabled:true}")
   private boolean narrativeGenerationEnabled;
@@ -68,12 +72,17 @@ public class NarrativeGenerationService {
       // Prepare context
       String contextDataJson = contextService.prepareContextJson(slide, presentationId);
 
+      // Get target duration for storing with narrative
+      SlideType slideType = getSlideType(slide);
+      DurationRange targetDuration = lengthCalculator.calculateTargetDuration(slide, slideType);
+
       // Generate narrative using AI
       String narrativeResult =
           generateSlideNarrative(slide, contextDataJson, style, presentationId);
 
-      // Parse and save narrative
+      // Parse and save narrative with target duration
       SlideNarrative narrative = parsingService.parseNarrative(narrativeResult, slide, style);
+      narrative.setTargetDurationSeconds(targetDuration.getMidpoint());
       narrative = slideNarrativeRepository.save(narrative);
 
       log.info("Generated narrative for slide: {} with ID: {}", slideId, narrative.getId());
@@ -107,12 +116,17 @@ public class NarrativeGenerationService {
       // Prepare context
       String contextDataJson = contextService.prepareContextJson(slide, presentationId);
 
+      // Get target duration for storing with narrative
+      SlideType slideType = getSlideType(slide);
+      DurationRange targetDuration = lengthCalculator.calculateTargetDuration(slide, slideType);
+
       // Generate narrative using AI
       String narrativeResult =
           generateSlideNarrative(slide, contextDataJson, style, presentationId);
 
-      // Parse narrative
+      // Parse narrative with target duration
       SlideNarrative narrative = parsingService.parseNarrative(narrativeResult, slide, style);
+      narrative.setTargetDurationSeconds(targetDuration.getMidpoint());
 
       // Deactivate previous narratives
       parsingService.deactivateExistingNarrative(slideId);
@@ -154,12 +168,37 @@ public class NarrativeGenerationService {
   private String generateSlideNarrative(
       Slide slide, String contextDataJson, String style, UUID presentationId) {
 
+    // Get slide type and calculate target duration
+    SlideType slideType = getSlideType(slide);
+    DurationRange targetDuration = lengthCalculator.calculateTargetDuration(slide, slideType);
+
+    log.info(
+        "Generating narrative for slide {} (type: {}) with target duration: {}",
+        slide.getSlideNumber(),
+        slideType,
+        targetDuration.toFormattedString());
+
     String systemPrompt = promptService.getSystemPromptForStyle(style);
-    String userPrompt = promptService.buildUserPrompt(contextDataJson);
+    String userPrompt =
+        promptService.buildUserPrompt(
+            contextDataJson,
+            targetDuration.getMinSeconds(),
+            targetDuration.getMaxSeconds(),
+            slideType);
     String responseFormat = promptService.getResponseFormatSchema();
 
     return openAIService.generateJsonCompletion(
         systemPrompt, userPrompt, responseFormat, "narrative-generation", presentationId);
+  }
+
+  /** Get slide type from analysis or detect it. */
+  private SlideType getSlideType(Slide slide) {
+    if (slide.getSlideAnalysis() != null && slide.getSlideAnalysis().getSlideType() != null) {
+      return slide.getSlideAnalysis().getSlideType();
+    }
+    // Fallback to CONTENT if not analyzed
+    log.warn("Slide {} has no type in analysis, defaulting to CONTENT", slide.getId());
+    return SlideType.CONTENT;
   }
 
   /**

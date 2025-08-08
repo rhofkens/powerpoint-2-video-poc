@@ -12,7 +12,7 @@ import { Slide, SlideAnalysis, SlideNarrative } from '@/types/presentation';
 import { useToast } from "@/hooks/use-toast";
 import { usePresentationStore } from '@/store/presentationStore';
 import { useAnalysisStore } from '@/store/analysisStore';
-import { SlideNarrativeCard } from './SlideNarrativeCard';
+import { SlideNarrativeWithTTS } from './SlideNarrativeWithTTS';
 import { SlideAnalysisCard } from './SlideAnalysisCard';
 
 interface SlidesGridProps {
@@ -35,6 +35,7 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
   const [modalOpen, setModalOpen] = useState<{
     slideId: string;
     type: 'content' | 'notes' | 'analysis' | 'title' | 'narrative';
+    autoGenerateSpeech?: boolean;
   } | null>(null);
   const { toast } = useToast();
   const { currentSlides, setSlides: setStoreSlides } = usePresentationStore();
@@ -45,6 +46,13 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
       fetchSlides();
     }
   }, [presentationId, processingComplete]);
+
+  // Sync local state with store state when store updates
+  useEffect(() => {
+    if (currentSlides.length > 0) {
+      setSlides(currentSlides);
+    }
+  }, [currentSlides]);
 
   const fetchSlides = async () => {
     try {
@@ -124,8 +132,17 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
   };
 
   const generateAudio = (slideId: string) => {
-    // TODO: Implement audio generation
-    console.log(`Generating audio for slide ${slideId}`);
+    const slide = slides.find(s => s.id === slideId);
+    if (!slide?.slideNarrative) {
+      toast({
+        title: "No Narrative Available",
+        description: "Please generate a narrative for this slide first",
+        variant: "destructive"
+      });
+      return;
+    }
+    // Open the narrative modal and trigger speech generation
+    setModalOpen({ slideId, type: 'narrative', autoGenerateSpeech: true });
   };
 
   const generateVideo = (slideId: string) => {
@@ -182,7 +199,14 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
         if (slide.slideNarrative) {
           return {
             title: `Slide Narrative - Slide ${slide.slideNumber}`,
-            content: <SlideNarrativeCard narrative={slide.slideNarrative} slideNumber={slide.slideNumber} />
+            content: <SlideNarrativeWithTTS 
+              narrative={slide.slideNarrative} 
+              slideNumber={slide.slideNumber}
+              slideId={slide.id}
+              presentationId={presentationId}
+              narrativeStyle={narrativeStyle}
+              autoGenerateSpeech={modalOpen?.autoGenerateSpeech}
+            />
           };
         } else {
           return {
@@ -276,8 +300,25 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                       </div>
                     </div>
                   )}
-                  <div className="absolute top-2 left-2">
+                  <div className="absolute top-2 left-2 flex gap-2 flex-wrap">
                     <Badge variant="secondary">Slide {slide.slideNumber}</Badge>
+                    {slide.slideAnalysis?.slideType && (
+                      <Badge 
+                        variant={
+                          slide.slideAnalysis.slideType === 'INTRO' ? 'default' :
+                          slide.slideAnalysis.slideType === 'SEPARATOR' ? 'outline' :
+                          slide.slideAnalysis.slideType === 'THANK_YOU' ? 'default' :
+                          'secondary'
+                        }
+                      >
+                        {slide.slideAnalysis.slideType}
+                      </Badge>
+                    )}
+                    {slide.slideNarrative?.targetDurationSeconds && (
+                      <Badge variant="outline">
+                        {slide.slideNarrative.targetDurationSeconds}s
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>
@@ -446,6 +487,12 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                                 <div>
                                   <p className="font-medium text-sm mb-1">Duration:</p>
                                   <p className="text-sm">{slide.slideNarrative.durationSeconds} seconds</p>
+                                </div>
+                              )}
+                              {slide.slideNarrative.targetDurationSeconds && (
+                                <div>
+                                  <p className="font-medium text-sm mb-1">Target Duration:</p>
+                                  <p className="text-sm">{slide.slideNarrative.targetDurationSeconds} seconds</p>
                                 </div>
                               )}
                             </div>

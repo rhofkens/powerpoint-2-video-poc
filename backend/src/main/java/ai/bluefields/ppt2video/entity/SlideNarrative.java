@@ -50,6 +50,9 @@ public class SlideNarrative {
   @Column(name = "duration_seconds")
   private Integer durationSeconds;
 
+  @Column(name = "target_duration_seconds")
+  private Integer targetDurationSeconds;
+
   @Column(name = "transition_phrase", columnDefinition = "TEXT")
   private String transitionPhrase;
 

@@ -78,6 +78,9 @@ public class Slide {
   @Column(name = "generated_narrative", columnDefinition = "TEXT")
   private String generatedNarrative;
 
+  @Column(name = "content_word_count")
+  private Integer contentWordCount;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "processing_status", nullable = false)
   private ProcessingStatus processingStatus = ProcessingStatus.EXTRACTED;

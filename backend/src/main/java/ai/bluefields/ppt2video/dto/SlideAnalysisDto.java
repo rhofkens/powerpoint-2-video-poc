@@ -20,6 +20,7 @@ public class SlideAnalysisDto {
   private String dataInsights;
   private String transitionContext;
   private String emphasisLevel;
+  private String slideType;
   private String analysisMetadata;
   private String modelUsed;
   private String promptVersion;

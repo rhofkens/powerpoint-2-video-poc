@@ -19,6 +19,7 @@ public class SlideNarrativeDto {
   private String avatarInstructions;
   private String speechMarkers;
   private Integer durationSeconds;
+  private Integer targetDurationSeconds;
   private String transitionPhrase;
   private String emphasisWords;
   private Integer version;

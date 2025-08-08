@@ -30,6 +30,7 @@ public class SlideDto {
   private String audioPath;
   private String videoPath;
   private String generatedNarrative;
+  private Integer contentWordCount;
   private String processingStatus;
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;

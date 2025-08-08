@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Orchestrator service for batch slide analysis. Handles async processing of multiple slides and
@@ -27,12 +26,12 @@ public class BatchSlideAnalysisOrchestrator {
   private final AnalysisStatusService analysisStatusService;
 
   /**
-   * Analyze all slides for a presentation asynchronously.
+   * Analyze all slides for a presentation asynchronously. Each slide is analyzed in its own
+   * transaction to allow real-time progress visibility.
    *
    * @param presentationId The ID of the presentation
    */
   @Async("virtualThreadExecutor")
-  @Transactional
   public void analyzeAllSlides(UUID presentationId) {
     log.info("=== STARTING BATCH SLIDE ANALYSIS ===");
     log.info("Presentation ID: {}", presentationId);
@@ -55,6 +54,7 @@ public class BatchSlideAnalysisOrchestrator {
 
   /** Prepare slides for batch processing. */
   private List<Slide> prepareSlides(UUID presentationId) {
+    // This will use the default transaction from the repository
     List<Slide> slides = slideRepository.findByPresentationIdOrderBySlideNumber(presentationId);
     log.info("Found {} slides for presentation {}", slides.size(), presentationId);
     return slides;

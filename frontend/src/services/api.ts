@@ -14,6 +14,12 @@ import {
   AnalysisType
 } from '../types/presentation';
 
+import {
+  SlideSpeech,
+  GenerateSpeechRequest,
+  TTSResponse
+} from '../types/tts';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 /**
@@ -44,7 +50,7 @@ class ApiService {
   constructor() {
     this.axiosInstance = axios.create({
       baseURL: API_BASE_URL,
-      timeout: 30000, // 30 seconds timeout
+      timeout: 60000, // 60 seconds timeout for AI operations
       headers: {
         'Content-Type': 'application/json',
       },
@@ -251,7 +257,9 @@ class ApiService {
    */
   async analyzeDeck(presentationId: string): Promise<DeckAnalysis> {
     const response = await this.axiosInstance.post<{ success: boolean; data: DeckAnalysis; message: string }>(
-      `/presentations/${presentationId}/analyze-deck`
+      `/presentations/${presentationId}/analyze-deck`,
+      {},
+      { timeout: 90000 } // 90 seconds timeout for deck analysis
     );
     return response.data.data;
   }
@@ -397,6 +405,81 @@ class ApiService {
     );
     console.log('[ApiService] Analysis status response:', response.data);
     return response.data.data;
+  }
+
+  /**
+   * Generates speech for a slide using Text-to-Speech.
+   * 
+   * @param slideId - The UUID of the slide
+   * @param request - The speech generation request parameters
+   * @returns Promise resolving to generated speech data
+   */
+  async generateSpeech(slideId: string, request: Partial<GenerateSpeechRequest>): Promise<SlideSpeech> {
+    console.log('[ApiService] Generating speech for slide:', slideId, 'with params:', request);
+    const response = await this.axiosInstance.post<TTSResponse<SlideSpeech>>(
+      `/slides/${slideId}/generate-speech`,
+      request
+    );
+    
+    if (!response.data.success || !response.data.data) {
+      throw new ApiError(response.data.error || 'Failed to generate speech');
+    }
+    
+    console.log('[ApiService] Speech generation response:', response.data);
+    return response.data.data;
+  }
+
+  /**
+   * Gets the speech data for a slide.
+   * 
+   * @param slideId - The UUID of the slide
+   * @returns Promise resolving to speech data if available
+   */
+  async getSlideSpeech(slideId: string): Promise<SlideSpeech | null> {
+    try {
+      const response = await this.axiosInstance.get<TTSResponse<SlideSpeech>>(
+        `/slides/${slideId}/speech`
+      );
+      
+      if (!response.data.success) {
+        return null;
+      }
+      
+      return response.data.data || null;
+    } catch (error) {
+      if ((error as ApiError).status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Gets all speeches for a presentation.
+   * 
+   * @param presentationId - The UUID of the presentation
+   * @returns Promise resolving to list of speeches
+   */
+  async getPresentationSpeeches(presentationId: string): Promise<SlideSpeech[]> {
+    const response = await this.axiosInstance.get<TTSResponse<SlideSpeech[]>>(
+      `/presentations/${presentationId}/speeches`
+    );
+    
+    if (!response.data.success) {
+      throw new ApiError(response.data.error || 'Failed to get speeches');
+    }
+    
+    return response.data.data || [];
+  }
+
+  /**
+   * Gets the URL for a speech audio file.
+   * 
+   * @param speechId - The UUID of the speech
+   * @returns The URL for the audio file
+   */
+  getSpeechAudioUrl(speechId: string): string {
+    return `${API_BASE_URL}/speeches/${speechId}/audio`;
   }
 }
 

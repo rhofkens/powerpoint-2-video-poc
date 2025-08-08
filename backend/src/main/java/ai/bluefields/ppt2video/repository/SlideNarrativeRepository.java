@@ -46,4 +46,12 @@ public interface SlideNarrativeRepository extends JpaRepository<SlideNarrative, 
    * @return Optional containing the narrative if found
    */
   Optional<SlideNarrative> findBySlideIdAndVersion(UUID slideId, Integer version);
+
+  /**
+   * Find active narrative for a slide.
+   *
+   * @param slideId The slide ID
+   * @return Optional containing the active narrative if found
+   */
+  Optional<SlideNarrative> findBySlideIdAndIsActiveTrue(UUID slideId);
 }
