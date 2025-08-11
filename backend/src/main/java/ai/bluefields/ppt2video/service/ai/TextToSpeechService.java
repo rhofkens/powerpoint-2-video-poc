@@ -5,6 +5,7 @@ import ai.bluefields.ppt2video.entity.SlideSpeech;
 import ai.bluefields.ppt2video.repository.SlideNarrativeRepository;
 import ai.bluefields.ppt2video.repository.SlideSpeechRepository;
 import ai.bluefields.ppt2video.service.FileStorageService;
+import ai.bluefields.ppt2video.service.ai.narrative.TransitionRedundancyChecker;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
@@ -36,6 +37,7 @@ public class TextToSpeechService {
   private final FileStorageService fileStorageService;
   private final SlideSpeechRepository slideSpeechRepository;
   private final SlideNarrativeRepository slideNarrativeRepository;
+  private final TransitionRedundancyChecker redundancyChecker;
 
   @Value("${app.elevenlabs.api-key}")
   private String apiKey;
@@ -93,23 +95,36 @@ public class TextToSpeechService {
             .findById(narrativeId)
             .orElseThrow(() -> new IllegalArgumentException("Narrative not found: " + narrativeId));
 
-    // Check if speech already exists
-    if (!forceRegenerate) {
-      Optional<SlideSpeech> existingSpeech =
-          slideSpeechRepository.findBySlideNarrativeId(narrativeId);
-      if (existingSpeech.isPresent()) {
-        log.info("Speech already exists for narrative: {}", narrativeId);
-        return existingSpeech.get();
-      }
+    // Check if active speech already exists
+    Optional<SlideSpeech> activeSpeech =
+        slideSpeechRepository.findActiveBySlideNarrativeId(narrativeId);
+
+    if (!forceRegenerate && activeSpeech.isPresent()) {
+      log.info("Active speech already exists for narrative: {}", narrativeId);
+      return activeSpeech.get();
+    }
+
+    // If force regenerating, deactivate ALL existing active speeches for this narrative
+    if (forceRegenerate && activeSpeech.isPresent()) {
+      log.info("Deactivating existing active speech for narrative: {}", narrativeId);
+      SlideSpeech oldSpeech = activeSpeech.get();
+      oldSpeech.setIsActive(false);
+      slideSpeechRepository.saveAndFlush(
+          oldSpeech); // Use saveAndFlush to ensure immediate persistence
+      log.info("Deactivated speech with ID: {}", oldSpeech.getId());
     }
 
     try {
       // Select voice based on style
       String voiceId = selectVoiceForStyle(narrativeStyle);
 
+      // Prepare the text with transition phrase if present
+      TransitionResult transitionResult = prepareTextWithTransitionAndTrack(narrative);
+      String textForTTS = transitionResult.text;
+
       // Prepare the request
       String requestId = enableRequestStitching ? UUID.randomUUID().toString() : null;
-      TTSResponse response = callElevenLabsAPI(narrative.getNarrativeText(), voiceId, requestId);
+      TTSResponse response = callElevenLabsAPI(textForTTS, voiceId, requestId);
 
       // Store the audio file
       String audioPath =
@@ -131,6 +146,9 @@ public class TextToSpeechService {
       slideSpeech.setTimingData(objectMapper.writeValueAsString(response.getTimestamps()));
       slideSpeech.setRequestId(requestId);
       slideSpeech.setOutputFormat(outputFormat);
+      slideSpeech.setIsActive(true); // Explicitly set as active
+      slideSpeech.setTransitionIncluded(transitionResult.included);
+      slideSpeech.setTransitionSkippedReason(transitionResult.skipReason);
 
       // Update the narrative's duration with the actual TTS duration
       narrative.setDurationSeconds((int) Math.ceil(response.getDurationSeconds()));
@@ -160,7 +178,83 @@ public class TextToSpeechService {
     }
   }
 
-  /** Calls the ElevenLabs API to generate speech with timestamps. */
+  /** Result of transition preparation containing the text and metadata. */
+  private static class TransitionResult {
+    final String text;
+    final boolean included;
+    final String skipReason;
+
+    TransitionResult(String text, boolean included, String skipReason) {
+      this.text = text;
+      this.included = included;
+      this.skipReason = skipReason;
+    }
+  }
+
+  /**
+   * Prepares the text for TTS by including the narrative and transition phrase. Checks for
+   * redundancy to avoid repeating concepts.
+   *
+   * @param narrative the narrative entity
+   * @return TransitionResult with the combined text and metadata
+   */
+  private TransitionResult prepareTextWithTransitionAndTrack(SlideNarrative narrative) {
+    String narrativeText = narrative.getNarrativeText();
+    String transitionPhrase = narrative.getTransitionPhrase();
+
+    // If there's no transition phrase, return just the narrative
+    if (transitionPhrase == null || transitionPhrase.trim().isEmpty()) {
+      return new TransitionResult(narrativeText, false, "No transition phrase");
+    }
+
+    // Get the next slide's narrative to check for redundancy
+    SlideNarrative nextNarrative = getNextSlideNarrative(narrative);
+
+    if (nextNarrative == null) {
+      // This is the last slide, include transition if present
+      log.info(
+          "Including transition for last slide {}: \"{}\"",
+          narrative.getSlide().getSlideNumber(),
+          transitionPhrase.substring(0, Math.min(50, transitionPhrase.length())) + "...");
+      return new TransitionResult(narrativeText + " ... " + transitionPhrase, true, null);
+    }
+
+    // Check for redundancy
+    boolean isRedundant =
+        redundancyChecker.isTransitionRedundant(transitionPhrase, nextNarrative.getNarrativeText());
+
+    if (isRedundant) {
+      log.info(
+          "Skipping redundant transition for slide {}: \"{}\"",
+          narrative.getSlide().getSlideNumber(),
+          transitionPhrase.substring(0, Math.min(50, transitionPhrase.length())) + "...");
+      return new TransitionResult(narrativeText, false, "Redundant with next slide opening");
+    }
+
+    // Include the transition
+    log.info(
+        "Including transition for slide {}: \"{}\"",
+        narrative.getSlide().getSlideNumber(),
+        transitionPhrase.substring(0, Math.min(50, transitionPhrase.length())) + "...");
+    return new TransitionResult(narrativeText + " ... " + transitionPhrase, true, null);
+  }
+
+  /**
+   * Gets the narrative for the next slide in the presentation.
+   *
+   * @param currentNarrative the current slide's narrative
+   * @return the next slide's narrative, or null if this is the last slide
+   */
+  private SlideNarrative getNextSlideNarrative(SlideNarrative currentNarrative) {
+    int currentSlideNumber = currentNarrative.getSlide().getSlideNumber();
+    UUID presentationId = currentNarrative.getSlide().getPresentation().getId();
+
+    // Find the narrative for the next slide number
+    return slideNarrativeRepository
+        .findByPresentationIdAndSlideNumber(presentationId, currentSlideNumber + 1)
+        .orElse(null);
+  }
+
   private TTSResponse callElevenLabsAPI(String text, String voiceId, String requestId)
       throws IOException {
     String url = apiUrl + "/text-to-speech/" + voiceId + "/with-timestamps";

@@ -74,6 +74,12 @@ public class SlideSpeech {
   @Column(name = "is_active")
   private Boolean isActive = true;
 
+  @Column(name = "transition_included")
+  private Boolean transitionIncluded = false;
+
+  @Column(name = "transition_skipped_reason")
+  private String transitionSkippedReason;
+
   @CreationTimestamp
   @Column(name = "created_at", nullable = false, updatable = false)
   private LocalDateTime createdAt;

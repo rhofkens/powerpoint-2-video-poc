@@ -187,6 +187,16 @@ export function CompleteNarrativeTab({ presentationId, presentationTitle }: Comp
                         </p>
                       </div>
                       
+                      {/* Transition phrase */}
+                      {narrative.transitionPhrase && (
+                        <div className="mt-3 p-3 bg-primary/5 border-l-2 border-primary/50 rounded-md">
+                          <p className="text-sm italic text-muted-foreground">
+                            <span className="font-medium text-foreground">Transition: </span>
+                            "{narrative.transitionPhrase}"
+                          </p>
+                        </div>
+                      )}
+                      
                       {/* Additional metadata */}
                       {narrative.avatarInstructions && (
                         <div className="mt-3 p-3 bg-muted/50 rounded-md">

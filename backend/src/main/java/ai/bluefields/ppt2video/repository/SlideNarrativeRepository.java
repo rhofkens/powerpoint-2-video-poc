@@ -54,4 +54,38 @@ public interface SlideNarrativeRepository extends JpaRepository<SlideNarrative, 
    * @return Optional containing the active narrative if found
    */
   Optional<SlideNarrative> findBySlideIdAndIsActiveTrue(UUID slideId);
+
+  /**
+   * Find all active narratives for a presentation ordered by slide number. Used for optimization
+   * processes.
+   *
+   * @param presentationId The presentation ID
+   * @param isActive Whether to filter for active narratives only
+   * @return List of narratives ordered by slide number
+   */
+  @Query(
+      "SELECT DISTINCT n FROM SlideNarrative n "
+          + "JOIN FETCH n.slide s "
+          + "WHERE s.presentation.id = :presentationId "
+          + "AND n.isActive = :isActive "
+          + "ORDER BY s.slideNumber")
+  List<SlideNarrative> findBySlide_Presentation_IdAndIsActiveOrderBySlide_SlideNumber(
+      @Param("presentationId") UUID presentationId, @Param("isActive") Boolean isActive);
+
+  /**
+   * Find active narrative by presentation ID and slide number. Used to get the next slide's
+   * narrative for transition redundancy checking.
+   *
+   * @param presentationId The presentation ID
+   * @param slideNumber The slide number
+   * @return Optional containing the active narrative for that slide number
+   */
+  @Query(
+      "SELECT n FROM SlideNarrative n "
+          + "JOIN n.slide s "
+          + "WHERE s.presentation.id = :presentationId "
+          + "AND s.slideNumber = :slideNumber "
+          + "AND n.isActive = true")
+  Optional<SlideNarrative> findByPresentationIdAndSlideNumber(
+      @Param("presentationId") UUID presentationId, @Param("slideNumber") int slideNumber);
 }

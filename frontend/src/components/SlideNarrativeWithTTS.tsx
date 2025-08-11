@@ -424,9 +424,24 @@ export function SlideNarrativeWithTTS({
 
         {/* Transition Phrase */}
         {narrative.transitionPhrase && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">Transition to Next Slide</h4>
-            <p className="text-sm text-muted-foreground italic">
+          <div className="space-y-2 p-3 bg-primary/5 border-l-2 border-primary/50 rounded-md">
+            <h4 className="text-sm font-medium flex items-center gap-2">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              Transition to Next Slide
+              {speech && speech.transitionSkippedReason && (
+                <Badge variant="secondary" className="text-xs ml-2">
+                  Skipped: {speech.transitionSkippedReason}
+                </Badge>
+              )}
+              {speech && speech.transitionIncluded && (
+                <Badge variant="default" className="text-xs ml-2">
+                  Included in Speech
+                </Badge>
+              )}
+            </h4>
+            <p className="text-sm italic">
               "{narrative.transitionPhrase}"
             </p>
           </div>

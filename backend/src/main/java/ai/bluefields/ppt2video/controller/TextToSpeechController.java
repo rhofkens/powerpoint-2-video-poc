@@ -219,6 +219,8 @@ public class TextToSpeechController {
             .requestId(speech.getRequestId())
             .outputFormat(speech.getOutputFormat())
             .isActive(speech.getIsActive())
+            .transitionIncluded(speech.getTransitionIncluded())
+            .transitionSkippedReason(speech.getTransitionSkippedReason())
             .createdAt(speech.getCreatedAt())
             .updatedAt(speech.getUpdatedAt());
 

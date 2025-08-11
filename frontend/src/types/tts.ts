@@ -42,6 +42,10 @@ export interface SlideSpeech {
   generationMetadata?: Record<string, unknown>;
   /** Whether this is the active speech */
   isActive: boolean;
+  /** Whether transition phrase was included */
+  transitionIncluded?: boolean;
+  /** Reason why transition was skipped */
+  transitionSkippedReason?: string;
   /** ISO 8601 timestamp of creation */
   createdAt: string;
   /** ISO 8601 timestamp of last update */

@@ -31,6 +31,8 @@ public class SlideSpeechDto {
   private String outputFormat;
   private Map<String, Object> generationMetadata;
   private Boolean isActive;
+  private Boolean transitionIncluded;
+  private String transitionSkippedReason;
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;
 

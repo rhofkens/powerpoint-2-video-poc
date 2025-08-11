@@ -39,6 +39,8 @@ public class AIAnalysisController {
   private final BatchSlideAnalysisOrchestrator batchSlideAnalysisOrchestrator;
   private final NarrativeGenerationService narrativeGenerationService;
   private final BatchNarrativeOrchestrator batchNarrativeOrchestrator;
+  private final ai.bluefields.ppt2video.service.ai.narrative.NarrativeOptimizationOrchestrator
+      narrativeOptimizationOrchestrator;
   private final PresentationRepository presentationRepository;
   private final AnalysisStatusService analysisStatusService;
 
@@ -404,6 +406,59 @@ public class AIAnalysisController {
             .success(true)
             .data(narratives)
             .message(String.format("Found %d narratives", narratives.size()))
+            .build());
+  }
+
+  /**
+   * Optimize narratives for a presentation (transitions and emotional enhancement).
+   *
+   * @param presentationId The presentation ID
+   * @param force Whether to force re-optimization even if already optimized
+   * @return Response indicating optimization has started
+   */
+  @PostMapping("/presentations/{id}/optimize-narratives")
+  public ResponseEntity<ApiResponse<String>> optimizeNarratives(
+      @PathVariable("id") UUID presentationId,
+      @RequestParam(value = "force", defaultValue = "false") boolean force) {
+
+    log.info(
+        "Received request to optimize narratives for presentation: {}, force: {}",
+        presentationId,
+        force);
+
+    // Check if presentation exists
+    Presentation presentation = presentationRepository.findById(presentationId).orElse(null);
+    if (presentation == null) {
+      return ResponseEntity.status(HttpStatus.NOT_FOUND)
+          .body(
+              ApiResponse.<String>builder()
+                  .success(false)
+                  .message("Presentation not found")
+                  .build());
+    }
+
+    // Check if narratives exist
+    List<SlideNarrative> narratives =
+        narrativeGenerationService.getAllNarrativesForPresentation(presentationId);
+
+    if (narratives.isEmpty()) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body(
+              ApiResponse.<String>builder()
+                  .success(false)
+                  .message("No narratives found to optimize. Please generate narratives first.")
+                  .build());
+    }
+
+    log.info("Starting narrative optimization for {} narratives", narratives.size());
+    narrativeOptimizationOrchestrator.optimizeNarratives(presentationId, force);
+
+    return ResponseEntity.ok(
+        ApiResponse.<String>builder()
+            .success(true)
+            .data("Narrative optimization started")
+            .message(
+                "Optimization process initiated successfully (transitions + emotional enhancement)")
             .build());
   }
 

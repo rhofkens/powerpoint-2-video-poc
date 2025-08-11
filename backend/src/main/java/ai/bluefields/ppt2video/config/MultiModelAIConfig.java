@@ -84,6 +84,7 @@ public class MultiModelAIConfig {
         textMaxCompletionTokens,
         textTemperature);
 
+    log.info("TEXTMODEL: Creating text model with model identifier " + textModel);
     OpenAiChatOptions.Builder optionsBuilder =
         OpenAiChatOptions.builder().model(textModel).temperature(textTemperature);
 

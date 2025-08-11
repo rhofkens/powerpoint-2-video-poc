@@ -88,6 +88,11 @@ public class NarrativePromptService {
         IMPORTANT: Focus your narrative exclusively on the "currentSlide" section below.
         The "previousSlide" and "nextSlide" are provided for context only - do not narrate them.
 
+        CRITICAL: DO NOT include specific contact details in the narrative:
+        - NEVER read out phone numbers, email addresses, or postal addresses
+        - Instead, use phrases like "contact information is available", "reach out via email", "give us a call", or "visit our website"
+        - This makes the narrative more pleasant to listen to and avoids awkward pronunciation of technical details
+
         Context provided:
         %s
 
@@ -258,6 +263,7 @@ public class NarrativePromptService {
         5. Consider the target audience and overall tone
         6. CRITICAL: Respect the exact duration requirements specified in the prompt
         7. Use concise language for short durations, more detail for longer durations
+        8. NEVER pronounce phone numbers, email addresses, or postal addresses - use general references instead
 
         Emotional indicators to use:
         - neutral: Default professional tone
@@ -283,6 +289,7 @@ public class NarrativePromptService {
         5. Include appropriate emotional indicators (playful, amused, excited, surprised)
         6. CRITICAL: Respect the exact duration requirements specified in the prompt
         7. Balance humor with content - shorter durations need punchier jokes
+        8. NEVER pronounce phone numbers, email addresses, or postal addresses - make jokes about "sliding into DMs" or "carrier pigeons" instead
 
         Emotional indicators to use:
         - playful: Light, fun delivery
@@ -308,6 +315,7 @@ public class NarrativePromptService {
         5. Remain professional despite the cynical perspective
         6. CRITICAL: Respect the exact duration requirements specified in the prompt
         7. Adjust cynicism intensity based on duration - brief for short, elaborate for long
+        8. NEVER pronounce phone numbers, email addresses, or postal addresses - be cynical about "yet another way to reach out"
 
         Emotional indicators to use:
         - skeptical: Questioning, doubtful tone

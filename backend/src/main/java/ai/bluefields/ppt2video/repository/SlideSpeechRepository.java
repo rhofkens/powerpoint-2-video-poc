@@ -15,6 +15,15 @@ public interface SlideSpeechRepository extends JpaRepository<SlideSpeech, UUID> 
   /** Find speech by slide narrative ID. */
   Optional<SlideSpeech> findBySlideNarrativeId(UUID narrativeId);
 
+  /** Find active speech by slide narrative ID. */
+  @Query(
+      "SELECT s FROM SlideSpeech s WHERE s.slideNarrative.id = :narrativeId AND s.isActive = true")
+  Optional<SlideSpeech> findActiveBySlideNarrativeId(UUID narrativeId);
+
+  /** Find all speeches for a narrative to deactivate them. */
+  @Query("SELECT s FROM SlideSpeech s WHERE s.slideNarrative.id = :narrativeId")
+  List<SlideSpeech> findAllBySlideNarrativeId(UUID narrativeId);
+
   /** Find all speeches for a presentation. */
   List<SlideSpeech> findByPresentationIdOrderBySlide_SlideNumber(UUID presentationId);
 
