@@ -34,6 +34,11 @@ public interface SlideSpeechRepository extends JpaRepository<SlideSpeech, UUID> 
   @Query("SELECT s FROM SlideSpeech s WHERE s.slide.id = :slideId AND s.isActive = true")
   Optional<SlideSpeech> findActiveBySlideId(UUID slideId);
 
+  /** Find all active speeches by slide ID. */
+  @Query(
+      "SELECT s FROM SlideSpeech s WHERE s.slide.id = :slideId AND s.isActive = true ORDER BY s.createdAt DESC")
+  List<SlideSpeech> findAllActiveBySlideIdOrderByCreatedAtDesc(UUID slideId);
+
   /** Check if speech exists for a narrative. */
   boolean existsBySlideNarrativeId(UUID narrativeId);
 

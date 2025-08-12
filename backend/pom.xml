@@ -23,6 +23,8 @@
 		<spring-ai.version>1.0.1</spring-ai.version>
 		<spotless.version>2.45.0</spotless.version>
 		<google-java-format.version>1.28.0</google-java-format.version>
+		<aws.sdk.version>2.32.20</aws.sdk.version>
+		<tika.version>2.9.2</tika.version>
 	</properties>
 	
 	<repositories>
@@ -168,6 +170,25 @@
 			<groupId>io.netty</groupId>
 			<artifactId>netty-all</artifactId>
 		</dependency>
+		
+		<!-- AWS SDK v2 for S3 -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
+		</dependency>
+		
+		<!-- AWS SDK v2 for S3 Transfer Manager -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3-transfer-manager</artifactId>
+		</dependency>
+		
+		<!-- Apache Tika for content type detection -->
+		<dependency>
+			<groupId>org.apache.tika</groupId>
+			<artifactId>tika-core</artifactId>
+			<version>${tika.version}</version>
+		</dependency>
 	</dependencies>
 	
 	<dependencyManagement>
@@ -176,6 +197,13 @@
 				<groupId>org.springframework.ai</groupId>
 				<artifactId>spring-ai-bom</artifactId>
 				<version>${spring-ai.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>software.amazon.awssdk</groupId>
+				<artifactId>bom</artifactId>
+				<version>${aws.sdk.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
