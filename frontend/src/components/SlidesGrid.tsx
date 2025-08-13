@@ -6,7 +6,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Play, Volume2, Video, RefreshCw, FileVideo, ImageIcon, Brain, MessageCircle, Loader2, User } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Play, Volume2, Video, RefreshCw, FileVideo, ImageIcon, Brain, MessageCircle, Loader2, User, ChevronDown, Scissors } from "lucide-react";
 import { apiService } from '@/services/api';
 import { Slide, SlideAnalysis, SlideNarrative, AvatarVideo } from '@/types/presentation';
 import { useToast } from "@/hooks/use-toast";
@@ -39,6 +45,7 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
     slideId: string;
     type: 'content' | 'notes' | 'analysis' | 'title' | 'narrative';
     autoGenerateSpeech?: boolean;
+    shortenMode?: boolean;
   } | null>(null);
   const { toast } = useToast();
   const { currentSlides, setSlides: setStoreSlides } = usePresentationStore();
@@ -211,8 +218,8 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
     setVideoPlayerOpen(slideId);
   };
 
-  const openModal = (slideId: string, type: 'content' | 'notes' | 'analysis' | 'title' | 'narrative') => {
-    setModalOpen({ slideId, type });
+  const openModal = (slideId: string, type: 'content' | 'notes' | 'analysis' | 'title' | 'narrative', shortenMode: boolean = false) => {
+    setModalOpen({ slideId, type, shortenMode });
   };
 
   const getModalContent = () => {
@@ -259,6 +266,11 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
               presentationId={presentationId}
               narrativeStyle={narrativeStyle}
               autoGenerateSpeech={modalOpen?.autoGenerateSpeech}
+              shortenMode={modalOpen?.shortenMode}
+              onNarrativeShortened={() => {
+                fetchSlides();
+                setModalOpen(null);
+              }}
             />
           };
         } else {
@@ -585,24 +597,40 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                     )}
                   </Button>
                   
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => generateNarrative(slide.id)}
-                    disabled={generatingNarratives.has(slide.id)}
-                  >
-                    {generatingNarratives.has(slide.id) ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        disabled={generatingNarratives.has(slide.id)}
+                      >
+                        {generatingNarratives.has(slide.id) ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <MessageCircle className="h-4 w-4 mr-2" />
+                            Narrative
+                            <ChevronDown className="h-3 w-3 ml-1" />
+                          </>
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => generateNarrative(slide.id)}>
                         <MessageCircle className="h-4 w-4 mr-2" />
-                        Generate Narrative
-                      </>
-                    )}
-                  </Button>
+                        {slide.slideNarrative ? 'Regenerate Narrative' : 'Generate Narrative'}
+                      </DropdownMenuItem>
+                      {slide.slideNarrative && (
+                        <DropdownMenuItem onClick={() => openModal(slide.id, 'narrative', true)}>
+                          <Scissors className="h-4 w-4 mr-2" />
+                          Shorten Narrative
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
                 {/* Audio Generation */}

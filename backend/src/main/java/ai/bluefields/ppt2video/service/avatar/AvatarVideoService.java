@@ -6,8 +6,11 @@ import ai.bluefields.ppt2video.exception.ProcessingException;
 import ai.bluefields.ppt2video.exception.ResourceNotFoundException;
 import ai.bluefields.ppt2video.repository.AvatarVideoRepository;
 import ai.bluefields.ppt2video.repository.PresentationRepository;
+import ai.bluefields.ppt2video.repository.SlideNarrativeRepository;
 import ai.bluefields.ppt2video.repository.SlideRepository;
 import ai.bluefields.ppt2video.service.R2AssetService;
+import ai.bluefields.ppt2video.service.avatar.providers.HeyGenConfiguration;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -29,9 +32,12 @@ public class AvatarVideoService {
   private final AvatarVideoRepository avatarVideoRepository;
   private final PresentationRepository presentationRepository;
   private final SlideRepository slideRepository;
+  private final SlideNarrativeRepository slideNarrativeRepository;
   private final R2AssetService r2AssetService;
   private final AvatarProviderFactory avatarProviderFactory;
   private final AvatarVideoMonitorService avatarVideoMonitorService;
+  private final HeyGenConfiguration heyGenConfiguration;
+  private final ObjectMapper objectMapper;
 
   /**
    * Generate an avatar video for a slide.
@@ -73,6 +79,10 @@ public class AvatarVideoService {
           "No audio available for slide. Please generate or upload audio first.");
     }
 
+    // Determine avatar ID based on narrative style
+    String avatarId = determineAvatarIdFromNarrativeStyle(slide, request.getAvatarId());
+    log.info("Using avatar ID: {} for slide: {}", avatarId, slide.getId());
+
     // Select provider
     AvatarProviderType providerType =
         request.getProviderType() != null ? request.getProviderType() : AvatarProviderType.HEYGEN;
@@ -86,7 +96,7 @@ public class AvatarVideoService {
             .slide(slide)
             .providerType(providerType)
             .status(AvatarGenerationStatusType.PENDING)
-            .avatarId(request.getAvatarId())
+            .avatarId(avatarId)
             .backgroundColor(request.getBackgroundColor())
             .audioUrl(audioUrl)
             .createdBy("system")
@@ -95,6 +105,9 @@ public class AvatarVideoService {
     avatarVideo = avatarVideoRepository.save(avatarVideo);
 
     try {
+      // Update request with the determined avatar ID
+      request.setAvatarId(avatarId);
+
       // Call provider to create video
       AvatarVideoResponse providerResponse = provider.createAvatarVideo(request, audioUrl);
 
@@ -412,6 +425,74 @@ public class AvatarVideoService {
     }
 
     return null;
+  }
+
+  /**
+   * Determine the avatar ID based on the narrative style. If a custom avatar ID is provided in the
+   * request, it takes precedence. Otherwise, selects avatar based on the narrative style from the
+   * active narrative.
+   *
+   * @param slide the slide to get narrative from
+   * @param requestedAvatarId custom avatar ID from request (optional)
+   * @return the avatar ID to use
+   */
+  private String determineAvatarIdFromNarrativeStyle(Slide slide, String requestedAvatarId) {
+    // If custom avatar ID is provided, use it
+    if (requestedAvatarId != null && !requestedAvatarId.isEmpty()) {
+      log.debug("Using custom avatar ID from request: {}", requestedAvatarId);
+      return requestedAvatarId;
+    }
+
+    // Try to get the active narrative for the slide
+    try {
+      SlideNarrative activeNarrative =
+          slideNarrativeRepository.findActiveNarrativeBySlideId(slide.getId()).orElse(null);
+
+      if (activeNarrative != null && activeNarrative.getGenerationMetadata() != null) {
+        // Extract style from narrative metadata
+        String style = extractStyleFromMetadata(activeNarrative.getGenerationMetadata());
+
+        // Get avatar ID for the detected style
+        String avatarId = heyGenConfiguration.getAvatar().getAvatarIdForStyle(style);
+        log.info("Selected avatar '{}' for narrative style '{}'", avatarId, style);
+        return avatarId;
+      }
+    } catch (Exception e) {
+      log.error(
+          "Failed to determine narrative style for slide {}: {}", slide.getId(), e.getMessage());
+    }
+
+    // Fall back to default avatar
+    String defaultAvatar = heyGenConfiguration.getAvatar().getDefaultId();
+    log.debug("Using default avatar: {}", defaultAvatar);
+    return defaultAvatar;
+  }
+
+  /**
+   * Extract narrative style from generation metadata.
+   *
+   * @param generationMetadata the JSON metadata string
+   * @return the style (business, funny, cynical) or "business" as default
+   */
+  @SuppressWarnings("unchecked")
+  private String extractStyleFromMetadata(String generationMetadata) {
+    if (generationMetadata == null || generationMetadata.isEmpty()) {
+      return "business";
+    }
+
+    try {
+      java.util.Map<String, Object> metadata =
+          objectMapper.readValue(generationMetadata, java.util.Map.class);
+
+      String style = (String) metadata.get("narrativeStyle");
+      if (style != null) {
+        return style;
+      }
+    } catch (Exception e) {
+      log.debug("Failed to parse generation metadata: {}", e.getMessage());
+    }
+
+    return "business";
   }
 
   /**

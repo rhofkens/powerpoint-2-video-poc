@@ -23,8 +23,7 @@ import {
   AlertCircle, 
   CheckCircle,
   RefreshCw,
-  Clock,
-  User
+  Clock
 } from 'lucide-react';
 
 interface AvatarVideoModalProps {
@@ -48,8 +47,7 @@ export function AvatarVideoModal({
   hasSpeech,
   existingAvatarVideo
 }: AvatarVideoModalProps) {
-  const [avatarId, setAvatarId] = useState('Josh_public_3_20240313');
-  const [backgroundColor, setBackgroundColor] = useState('#1E3A5F');
+  const [backgroundColor, setBackgroundColor] = useState('#F5DEB3');
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentVideo, setCurrentVideo] = useState<AvatarVideoResponse | null>(existingAvatarVideo || null);
   const [status, setStatus] = useState<AvatarGenerationStatus | null>(existingAvatarVideo?.status || null);
@@ -211,7 +209,8 @@ export function AvatarVideoModal({
       const request: AvatarVideoRequest = {
         presentationId,
         slideId,
-        avatarId,
+        // Don't send avatarId - let backend determine it based on narrative style
+        // avatarId,
         backgroundColor,
         usePublishedAudio: true
       };
@@ -279,44 +278,28 @@ export function AvatarVideoModal({
         <div className="space-y-4">
           {/* Configuration */}
           {!currentVideo && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="avatarId">Avatar ID</Label>
-                <div className="flex items-center space-x-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="avatarId"
-                    value={avatarId}
-                    onChange={(e) => setAvatarId(e.target.value)}
-                    placeholder="Enter avatar ID"
-                    disabled={isGenerating}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Default: Josh_public_3_20240313
-                </p>
+            <div className="space-y-2">
+              <Label htmlFor="backgroundColor">Background Color</Label>
+              <div className="flex items-center space-x-2">
+                <div 
+                  className="w-8 h-8 rounded border"
+                  style={{ backgroundColor }}
+                />
+                <Input
+                  id="backgroundColor"
+                  type="color"
+                  value={backgroundColor}
+                  onChange={(e) => setBackgroundColor(e.target.value)}
+                  disabled={isGenerating}
+                  className="flex-1"
+                />
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="backgroundColor">Background Color</Label>
-                <div className="flex items-center space-x-2">
-                  <div 
-                    className="w-8 h-8 rounded border"
-                    style={{ backgroundColor }}
-                  />
-                  <Input
-                    id="backgroundColor"
-                    type="color"
-                    value={backgroundColor}
-                    onChange={(e) => setBackgroundColor(e.target.value)}
-                    disabled={isGenerating}
-                    className="flex-1"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Choose a background color for the video
-                </p>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Choose a background color for the video (Default: Wheat #F5DEB3)
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Note: Avatar will be automatically selected based on the narrative style (Business, Funny, or Cynical)
+              </p>
             </div>
           )}
           

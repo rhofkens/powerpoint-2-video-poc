@@ -44,7 +44,7 @@ public class HeyGenClient {
       String requestBody = objectMapper.writeValueAsString(request);
 
       log.info("Creating HeyGen video with URL: {}", url);
-      log.info("HeyGen request body: {}", requestBody);
+      log.debug("HeyGen request body: {}", requestBody);
 
       HttpRequest httpRequest =
           HttpRequest.newBuilder()

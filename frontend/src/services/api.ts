@@ -338,6 +338,42 @@ class ApiService {
   }
 
   /**
+   * Shortens an existing narrative by a specified percentage.
+   * 
+   * @param narrativeId - The UUID of the narrative to shorten
+   * @param reductionPercentage - The percentage to reduce (25-75)
+   * @returns Promise resolving to shortened narrative response
+   */
+  async shortenNarrative(narrativeId: string, reductionPercentage: number): Promise<{
+    originalText: string;
+    shortenedText: string;
+    originalWordCount: number;
+    newWordCount: number;
+    actualReduction: number;
+    narrativeId: string;
+    message: string;
+  }> {
+    const response = await this.axiosInstance.post<{ 
+      success: boolean; 
+      data: {
+        originalText: string;
+        shortenedText: string;
+        originalWordCount: number;
+        newWordCount: number;
+        actualReduction: number;
+        narrativeId: string;
+        message: string;
+      }; 
+      message: string 
+    }>(
+      `/narratives/${narrativeId}/shorten?reductionPercentage=${reductionPercentage}`,
+      {},
+      { timeout: 60000 } // 60 seconds timeout for narrative shortening
+    );
+    return response.data.data;
+  }
+
+  /**
    * Gets the narrative for a slide.
    * 
    * @param slideId - The UUID of the slide

@@ -46,6 +46,9 @@ public class HeyGenAvatarProvider implements AvatarProvider {
           request.getAvatarId() != null
               ? request.getAvatarId()
               : configuration.getAvatar().getDefaultId();
+
+      log.debug("Using avatar ID: {}", avatarId);
+
       String backgroundColor =
           request.getBackgroundColor() != null
               ? request.getBackgroundColor()

@@ -4,6 +4,7 @@ import ai.bluefields.ppt2video.dto.AnalysisStatusDto;
 import ai.bluefields.ppt2video.dto.AnalysisStatusDto.AnalysisType;
 import ai.bluefields.ppt2video.dto.ApiResponse;
 import ai.bluefields.ppt2video.dto.GenerateNarrativeRequestDto;
+import ai.bluefields.ppt2video.dto.ShortenNarrativeResponse;
 import ai.bluefields.ppt2video.entity.DeckAnalysis;
 import ai.bluefields.ppt2video.entity.Presentation;
 import ai.bluefields.ppt2video.entity.SlideAnalysis;
@@ -17,6 +18,8 @@ import ai.bluefields.ppt2video.service.ai.slideanalysis.BatchSlideAnalysisOrches
 import ai.bluefields.ppt2video.service.ai.slideanalysis.SlideAnalysisService;
 import java.util.List;
 import java.util.UUID;
+import javax.validation.constraints.Max;
+import javax.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -460,6 +463,41 @@ public class AIAnalysisController {
             .message(
                 "Optimization process initiated successfully (transitions + emotional enhancement)")
             .build());
+  }
+
+  /**
+   * Shorten an existing narrative by a specified percentage.
+   *
+   * @param narrativeId The narrative ID to shorten
+   * @param reductionPercentage The percentage to reduce (25-75)
+   * @return The shortened narrative response
+   */
+  @PostMapping("/narratives/{id}/shorten")
+  public ResponseEntity<ApiResponse<ShortenNarrativeResponse>> shortenNarrative(
+      @PathVariable("id") UUID narrativeId,
+      @RequestParam(defaultValue = "50") @Min(25) @Max(75) int reductionPercentage) {
+
+    log.info("Received request to shorten narrative: {} by {}%", narrativeId, reductionPercentage);
+
+    try {
+      ShortenNarrativeResponse response =
+          narrativeGenerationService.shortenNarrative(narrativeId, reductionPercentage);
+
+      return ResponseEntity.ok(
+          ApiResponse.<ShortenNarrativeResponse>builder()
+              .success(true)
+              .data(response)
+              .message(response.getMessage())
+              .build());
+    } catch (Exception e) {
+      log.error("Failed to shorten narrative: {}", narrativeId, e);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body(
+              ApiResponse.<ShortenNarrativeResponse>builder()
+                  .success(false)
+                  .message("Failed to shorten narrative: " + e.getMessage())
+                  .build());
+    }
   }
 
   /**

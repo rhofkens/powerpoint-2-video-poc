@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
 import { SlideNarrative, EmotionIndicator, AvatarInstructions, SpeechMarkers } from "@/types/presentation";
 import { SlideSpeech } from "@/types/tts";
 import { apiService } from "@/services/api";
@@ -20,7 +22,8 @@ import {
   Play,
   AlertCircle,
   CheckCircle,
-  Pause
+  Pause,
+  Scissors
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -31,6 +34,8 @@ interface SlideNarrativeWithTTSProps {
   presentationId: string;
   narrativeStyle?: string;
   autoGenerateSpeech?: boolean;
+  shortenMode?: boolean;
+  onNarrativeShortened?: () => void;
 }
 
 export function SlideNarrativeWithTTS({ 
@@ -39,13 +44,18 @@ export function SlideNarrativeWithTTS({
   slideId,
   presentationId,
   narrativeStyle = "business",
-  autoGenerateSpeech = false
+  autoGenerateSpeech = false,
+  shortenMode = false,
+  onNarrativeShortened
 }: SlideNarrativeWithTTSProps) {
   const [isGeneratingSpeech, setIsGeneratingSpeech] = useState(false);
   const [speech, setSpeech] = useState<SlideSpeech | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isShorteningNarrative, setIsShorteningNarrative] = useState(false);
+  const [reductionPercentage, setReductionPercentage] = useState(50);
+  const [shortenedNarrative, setShortenedNarrative] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const { updateSlide } = usePresentationStore();
@@ -226,6 +236,43 @@ export function SlideNarrativeWithTTS({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const handleShortenNarrative = async () => {
+    if (!narrative.id) return;
+    
+    setIsShorteningNarrative(true);
+    try {
+      const response = await apiService.shortenNarrative(narrative.id, reductionPercentage);
+      
+      setShortenedNarrative(response.shortenedText);
+      
+      toast({
+        title: "Narrative Shortened",
+        description: `Reduced by ${response.actualReduction}% (from ${response.originalWordCount} to ${response.newWordCount} words)`,
+      });
+      
+      // Refresh the parent component
+      if (onNarrativeShortened) {
+        onNarrativeShortened();
+      }
+    } catch (error) {
+      console.error("Failed to shorten narrative:", error);
+      toast({
+        title: "Shortening Failed",
+        description: error instanceof Error ? error.message : "Failed to shorten narrative",
+        variant: "destructive",
+      });
+    } finally {
+      setIsShorteningNarrative(false);
+    }
+  };
+
+  const countWords = (text: string) => {
+    return text.trim().split(/\s+/).length;
+  };
+
+  const originalWordCount = countWords(narrative.narrativeText);
+  const estimatedNewWordCount = Math.round(originalWordCount * (1 - reductionPercentage / 100));
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -249,6 +296,82 @@ export function SlideNarrativeWithTTS({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Shortening Mode Section */}
+        {shortenMode && (
+          <div className="space-y-4 p-4 bg-primary/5 border-2 border-primary/20 rounded-lg">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <Scissors className="h-4 w-4" />
+                Shorten Narrative
+              </h4>
+              <Badge variant="outline">
+                Current: {originalWordCount} words
+              </Badge>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="reduction-slider">Reduction Amount</Label>
+                  <span className="text-sm font-medium">{reductionPercentage}%</span>
+                </div>
+                <Slider
+                  id="reduction-slider"
+                  min={25}
+                  max={75}
+                  step={5}
+                  value={[reductionPercentage]}
+                  onValueChange={(value) => setReductionPercentage(value[0])}
+                  disabled={isShorteningNarrative}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>25%</span>
+                  <span>50%</span>
+                  <span>75%</span>
+                </div>
+              </div>
+              
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Estimated new length: <strong>{estimatedNewWordCount} words</strong> 
+                  <span className="text-muted-foreground ml-2">
+                    (~{Math.round(estimatedNewWordCount / 150 * 60)}s at 150 words/min)
+                  </span>
+                </AlertDescription>
+              </Alert>
+              
+              <Button
+                onClick={handleShortenNarrative}
+                disabled={isShorteningNarrative}
+                className="w-full"
+              >
+                {isShorteningNarrative ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Shortening Narrative...
+                  </>
+                ) : (
+                  <>
+                    <Scissors className="h-4 w-4 mr-2" />
+                    Apply Shortening ({reductionPercentage}%)
+                  </>
+                )}
+              </Button>
+              
+              {shortenedNarrative && (
+                <Alert className="bg-green-50 border-green-200">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <AlertDescription>
+                    Narrative successfully shortened! The page will refresh to show the new version.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* TTS Generation Section */}
         <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
           <div className="flex items-center justify-between">

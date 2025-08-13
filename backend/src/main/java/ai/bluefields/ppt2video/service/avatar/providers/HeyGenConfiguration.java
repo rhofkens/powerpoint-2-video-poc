@@ -51,11 +51,43 @@ public class HeyGenConfiguration {
     /** Default avatar ID to use */
     private String defaultId = "Brandon_expressive2_public";
 
+    /** Avatar ID for business style narratives */
+    private String businessId = "Brandon_expressive2_public";
+
+    /** Avatar ID for funny style narratives */
+    private String funnyId = "Jinwoo_public_2";
+
+    /** Avatar ID for cynical style narratives */
+    private String cynicalId = "Annelore_public_5";
+
     /** Default background color for chroma key */
     private String backgroundColor = "#F5DEB3";
 
     /** Whether to use transparent background */
     private boolean transparentBackground = false;
+
+    /**
+     * Get the avatar ID for a specific narrative style
+     *
+     * @param style the narrative style (business, funny, cynical)
+     * @return the corresponding avatar ID, or default if style not recognized
+     */
+    public String getAvatarIdForStyle(String style) {
+      if (style == null) {
+        return defaultId;
+      }
+
+      switch (style.toLowerCase()) {
+        case "business":
+          return businessId != null ? businessId : defaultId;
+        case "funny":
+          return funnyId != null ? funnyId : defaultId;
+        case "cynical":
+          return cynicalId != null ? cynicalId : defaultId;
+        default:
+          return defaultId;
+      }
+    }
   }
 
   @Data
