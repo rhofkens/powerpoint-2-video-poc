@@ -457,3 +457,87 @@ export interface SlideNarrative {
   /** ISO 8601 timestamp of last update */
   updatedAt: string;
 }
+
+/**
+ * Avatar video generation status types
+ */
+export type AvatarGenerationStatus = 
+  | 'PENDING'      // Request submitted, waiting to start
+  | 'PROCESSING'   // Video is being generated
+  | 'COMPLETED'    // Video generation successful
+  | 'FAILED';      // Generation failed
+
+/**
+ * Avatar video entity
+ */
+export interface AvatarVideo {
+  /** Unique identifier (UUID) */
+  id: string;
+  /** Presentation ID */
+  presentationId: string;
+  /** Slide ID */
+  slideId: string;
+  /** Current generation status */
+  status: AvatarGenerationStatus;
+  /** Avatar ID used for generation */
+  avatarId?: string;
+  /** Background color used */
+  backgroundColor?: string;
+  /** Audio URL used for generation */
+  audioUrl?: string;
+  /** Generated video URL */
+  videoUrl?: string;
+  /** Published video URL in R2 */
+  publishedUrl?: string;
+  /** Video duration in seconds */
+  durationSeconds?: number;
+  /** Generation progress percentage */
+  progressPercentage?: number;
+  /** Error message if failed */
+  errorMessage?: string;
+  /** When generation started */
+  startedAt?: string;
+  /** When generation completed */
+  completedAt?: string;
+  /** When published to R2 */
+  publishedAt?: string;
+  /** ISO 8601 timestamp of creation */
+  createdAt: string;
+  /** ISO 8601 timestamp of last update */
+  updatedAt: string;
+}
+
+/**
+ * Request to generate avatar video
+ */
+export interface AvatarVideoRequest {
+  presentationId: string;
+  slideId: string;
+  avatarId?: string;
+  backgroundColor?: string;
+  usePublishedAudio?: boolean;
+  customAudioUrl?: string;
+}
+
+/**
+ * Response from avatar video generation
+ */
+export interface AvatarVideoResponse extends AvatarVideo {
+  providerVideoId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Avatar video status DTO
+ */
+export interface AvatarVideoStatusDto {
+  id: string;
+  status: AvatarGenerationStatus;
+  errorMessage?: string;
+  progressPercentage?: number;
+  videoUrl?: string;
+  publishedUrl?: string;
+  durationSeconds?: number;
+  startedAt?: string;
+  completedAt?: string;
+}

@@ -303,6 +303,34 @@ public class R2AssetService {
         }
         break;
 
+      case SLIDE_AVATAR_VIDEO:
+        if (slideId != null) {
+          // Look for avatar videos in the expected directory
+          Path avatarVideoDir = Paths.get(basePath, "slides", slideId.toString(), "avatar_videos");
+          if (Files.exists(avatarVideoDir) && Files.isDirectory(avatarVideoDir)) {
+            try {
+              // Find the most recent avatar video file
+              return Files.list(avatarVideoDir)
+                  .filter(Files::isRegularFile)
+                  .filter(p -> p.getFileName().toString().endsWith(".mp4"))
+                  .max(
+                      (p1, p2) -> {
+                        try {
+                          return Files.getLastModifiedTime(p1)
+                              .compareTo(Files.getLastModifiedTime(p2));
+                        } catch (IOException e) {
+                          return 0;
+                        }
+                      })
+                  .orElse(null);
+            } catch (IOException e) {
+              log.error("Error listing avatar video files", e);
+            }
+          }
+          log.warn("No avatar video directory found for slide {} at: {}", slideId, avatarVideoDir);
+        }
+        break;
+
       case PRESENTATION_FULL_VIDEO:
         return Paths.get(basePath, "video", "presentation.mp4");
 

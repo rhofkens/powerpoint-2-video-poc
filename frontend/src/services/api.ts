@@ -11,7 +11,11 @@ import {
   SlideAnalysis,
   SlideNarrative,
   AnalysisStatusDto,
-  AnalysisType
+  AnalysisType,
+  AvatarVideo,
+  AvatarVideoRequest,
+  AvatarVideoResponse,
+  AvatarVideoStatusDto
 } from '../types/presentation';
 
 import {
@@ -480,6 +484,90 @@ class ApiService {
    */
   getSpeechAudioUrl(speechId: string): string {
     return `${API_BASE_URL}/speeches/${speechId}/audio`;
+  }
+
+  /**
+   * Generate an avatar video for a slide.
+   * 
+   * @param request - The avatar video generation request
+   * @returns The avatar video response
+   */
+  async generateAvatarVideo(request: AvatarVideoRequest): Promise<AvatarVideoResponse> {
+    const response = await this.axiosInstance.post<{
+      success: boolean;
+      data: AvatarVideoResponse;
+      message?: string;
+      error?: { description?: string };
+    }>('/avatar-videos/generate', request);
+    
+    if (!response.data.success) {
+      throw new ApiError(response.data.error?.description || response.data.message || 'Failed to generate avatar video');
+    }
+    
+    return response.data.data;
+  }
+
+  /**
+   * Get the status of an avatar video generation job.
+   * 
+   * @param avatarVideoId - The UUID of the avatar video
+   * @returns The avatar video status
+   */
+  async getAvatarVideoStatus(avatarVideoId: string): Promise<AvatarVideoStatusDto> {
+    const response = await this.axiosInstance.get<{
+      success: boolean;
+      data: AvatarVideoStatusDto;
+      message?: string;
+      error?: { description?: string };
+    }>(`/avatar-videos/${avatarVideoId}/status`);
+    
+    if (!response.data.success) {
+      throw new ApiError(response.data.error?.description || response.data.message || 'Failed to get avatar video status');
+    }
+    
+    return response.data.data;
+  }
+
+  /**
+   * Get all avatar videos for a slide.
+   * 
+   * @param slideId - The UUID of the slide
+   * @returns List of avatar videos
+   */
+  async getSlideAvatarVideos(slideId: string): Promise<AvatarVideoResponse[]> {
+    const response = await this.axiosInstance.get<{
+      success: boolean;
+      data: AvatarVideoResponse[];
+      message?: string;
+      error?: { description?: string };
+    }>(`/avatar-videos/slide/${slideId}`);
+    
+    if (!response.data.success) {
+      throw new ApiError(response.data.error?.description || response.data.message || 'Failed to get slide avatar videos');
+    }
+    
+    return response.data.data || [];
+  }
+
+  /**
+   * Publish a completed avatar video to R2 storage.
+   * 
+   * @param avatarVideoId - The UUID of the avatar video
+   * @returns The published asset information
+   */
+  async publishAvatarVideo(avatarVideoId: string): Promise<{ url: string }> {
+    const response = await this.axiosInstance.post<{
+      success: boolean;
+      data: { url: string };
+      message?: string;
+      error?: { description?: string };
+    }>(`/avatar-videos/${avatarVideoId}/publish`);
+    
+    if (!response.data.success) {
+      throw new ApiError(response.data.error?.description || response.data.message || 'Failed to publish avatar video');
+    }
+    
+    return response.data.data;
   }
 }
 

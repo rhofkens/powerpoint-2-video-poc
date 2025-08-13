@@ -50,6 +50,7 @@ public class AsposeRenderingStrategy implements RenderingStrategy {
       float scaleX = width / (float) presentation.getSlideSize().getSize().getWidth();
       float scaleY = height / (float) presentation.getSlideSize().getSize().getHeight();
 
+      @SuppressWarnings("deprecation")
       BufferedImage slideImage = slide.getThumbnail(scaleX, scaleY);
 
       return new RenderedSlide(slideImage, width, height);

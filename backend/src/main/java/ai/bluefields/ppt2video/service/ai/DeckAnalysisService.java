@@ -167,6 +167,7 @@ public class DeckAnalysisService {
   /** Parse AI analysis result and create DeckAnalysis entity. */
   private DeckAnalysis parseDeckAnalysis(String analysisResult, Presentation presentation) {
     try {
+      @SuppressWarnings("unchecked")
       Map<String, Object> analysisMap = objectMapper.readValue(analysisResult, Map.class);
 
       DeckAnalysis analysis = new DeckAnalysis();
@@ -175,6 +176,7 @@ public class DeckAnalysisService {
       analysis.setCommunicationIntent((String) analysisMap.get("communicationIntent"));
 
       // Convert key themes array to JSON string
+      @SuppressWarnings("unchecked")
       List<String> keyThemes = (List<String>) analysisMap.get("keyThemes");
       analysis.setKeyThemes(objectMapper.writeValueAsString(keyThemes));
 

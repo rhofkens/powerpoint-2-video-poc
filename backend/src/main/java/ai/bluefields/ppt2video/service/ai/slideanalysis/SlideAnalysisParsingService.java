@@ -32,6 +32,7 @@ public class SlideAnalysisParsingService {
    */
   public SlideAnalysis parseSlideAnalysis(String analysisResult, Slide slide) {
     try {
+      @SuppressWarnings("unchecked")
       Map<String, Object> analysisMap = objectMapper.readValue(analysisResult, Map.class);
 
       SlideAnalysis analysis = new SlideAnalysis();

@@ -1,8 +1,10 @@
 package ai.bluefields.ppt2video.service.ai;
 
+import ai.bluefields.ppt2video.entity.Slide;
 import ai.bluefields.ppt2video.entity.SlideNarrative;
 import ai.bluefields.ppt2video.entity.SlideSpeech;
 import ai.bluefields.ppt2video.repository.SlideNarrativeRepository;
+import ai.bluefields.ppt2video.repository.SlideRepository;
 import ai.bluefields.ppt2video.repository.SlideSpeechRepository;
 import ai.bluefields.ppt2video.service.FileStorageService;
 import ai.bluefields.ppt2video.service.ai.narrative.TransitionRedundancyChecker;
@@ -37,6 +39,7 @@ public class TextToSpeechService {
   private final FileStorageService fileStorageService;
   private final SlideSpeechRepository slideSpeechRepository;
   private final SlideNarrativeRepository slideNarrativeRepository;
+  private final SlideRepository slideRepository;
   private final TransitionRedundancyChecker redundancyChecker;
 
   @Value("${app.elevenlabs.api-key}")
@@ -95,23 +98,36 @@ public class TextToSpeechService {
             .findById(narrativeId)
             .orElseThrow(() -> new IllegalArgumentException("Narrative not found: " + narrativeId));
 
-    // Check if active speech already exists
-    Optional<SlideSpeech> activeSpeech =
+    // Check if active speech already exists for this narrative
+    Optional<SlideSpeech> activeSpeechForNarrative =
         slideSpeechRepository.findActiveBySlideNarrativeId(narrativeId);
 
-    if (!forceRegenerate && activeSpeech.isPresent()) {
+    if (!forceRegenerate && activeSpeechForNarrative.isPresent()) {
       log.info("Active speech already exists for narrative: {}", narrativeId);
-      return activeSpeech.get();
+      return activeSpeechForNarrative.get();
     }
 
-    // If force regenerating, deactivate ALL existing active speeches for this narrative
-    if (forceRegenerate && activeSpeech.isPresent()) {
-      log.info("Deactivating existing active speech for narrative: {}", narrativeId);
-      SlideSpeech oldSpeech = activeSpeech.get();
-      oldSpeech.setIsActive(false);
-      slideSpeechRepository.saveAndFlush(
-          oldSpeech); // Use saveAndFlush to ensure immediate persistence
-      log.info("Deactivated speech with ID: {}", oldSpeech.getId());
+    // IMPORTANT: Deactivate ALL active speeches for this SLIDE (not just this narrative)
+    // This handles the case where a new narrative was generated and we're creating speech for it
+    List<SlideSpeech> allActiveSpeeches =
+        slideSpeechRepository.findAllActiveBySlideIdOrderByCreatedAtDesc(
+            narrative.getSlide().getId());
+
+    if (!allActiveSpeeches.isEmpty()) {
+      log.info(
+          "Deactivating {} existing active speech(es) for slide: {}",
+          allActiveSpeeches.size(),
+          narrative.getSlide().getId());
+
+      for (SlideSpeech oldSpeech : allActiveSpeeches) {
+        oldSpeech.setIsActive(false);
+        slideSpeechRepository.saveAndFlush(
+            oldSpeech); // Use saveAndFlush to ensure immediate persistence
+        log.info(
+            "Deactivated speech with ID: {} (was for narrative: {})",
+            oldSpeech.getId(),
+            oldSpeech.getSlideNarrative() != null ? oldSpeech.getSlideNarrative().getId() : "null");
+      }
     }
 
     try {
@@ -164,6 +180,12 @@ public class TextToSpeechService {
       slideSpeech.setGenerationMetadata(objectMapper.writeValueAsString(metadata));
 
       slideSpeech = slideSpeechRepository.save(slideSpeech);
+
+      // Update the slide's audio_path to point to the new speech
+      Slide slide = narrative.getSlide();
+      slide.setAudioPath(audioPath);
+      slideRepository.save(slide);
+      log.info("Updated slide {} audio_path to: {}", slide.getId(), audioPath);
 
       log.info(
           "Successfully generated speech for narrative: {}, duration: {} seconds",
@@ -320,7 +342,10 @@ public class TextToSpeechService {
         Map<String, Object> alignment =
             (Map<String, Object>) responseBody.get("normalized_alignment");
         if (alignment == null) {
-          alignment = (Map<String, Object>) responseBody.get("alignment");
+          @SuppressWarnings("unchecked")
+          Map<String, Object> fallbackAlignment =
+              (Map<String, Object>) responseBody.get("alignment");
+          alignment = fallbackAlignment;
         }
 
         if (alignment != null) {

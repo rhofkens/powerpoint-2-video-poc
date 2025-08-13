@@ -35,6 +35,7 @@ public class NarrativeParsingService {
    */
   public SlideNarrative parseNarrative(String narrativeResult, Slide slide, String style) {
     try {
+      @SuppressWarnings("unchecked")
       Map<String, Object> narrativeMap = objectMapper.readValue(narrativeResult, Map.class);
 
       SlideNarrative narrative = new SlideNarrative();
@@ -51,7 +52,16 @@ public class NarrativeParsingService {
       parseSpeechMarkers(narrativeMap, narrative);
 
       // Set duration and transition
-      narrative.setDurationSeconds((Integer) narrativeMap.get("durationSeconds"));
+      Object durationObj = narrativeMap.get("durationSeconds");
+      if (durationObj != null) {
+        if (durationObj instanceof Double) {
+          narrative.setDurationSeconds(((Double) durationObj).intValue());
+        } else if (durationObj instanceof Integer) {
+          narrative.setDurationSeconds((Integer) durationObj);
+        } else if (durationObj instanceof Number) {
+          narrative.setDurationSeconds(((Number) durationObj).intValue());
+        }
+      }
       narrative.setTransitionPhrase((String) narrativeMap.get("transitionPhrase"));
 
       // Set version
@@ -115,6 +125,7 @@ public class NarrativeParsingService {
 
   private void parseEmotionIndicators(Map<String, Object> narrativeMap, SlideNarrative narrative)
       throws Exception {
+    @SuppressWarnings("unchecked")
     List<Map<String, Object>> emotionIndicators =
         (List<Map<String, Object>>) narrativeMap.get("emotionIndicators");
     if (emotionIndicators != null) {
@@ -124,6 +135,7 @@ public class NarrativeParsingService {
 
   private void parseAvatarInstructions(Map<String, Object> narrativeMap, SlideNarrative narrative)
       throws Exception {
+    @SuppressWarnings("unchecked")
     Map<String, Object> avatarInstructions =
         (Map<String, Object>) narrativeMap.get("avatarInstructions");
     if (avatarInstructions != null) {
@@ -133,11 +145,13 @@ public class NarrativeParsingService {
 
   private void parseSpeechMarkers(Map<String, Object> narrativeMap, SlideNarrative narrative)
       throws Exception {
+    @SuppressWarnings("unchecked")
     Map<String, Object> speechMarkers = (Map<String, Object>) narrativeMap.get("speechMarkers");
     if (speechMarkers != null) {
       narrative.setSpeechMarkers(objectMapper.writeValueAsString(speechMarkers));
 
       // Extract emphasis words
+      @SuppressWarnings("unchecked")
       List<String> emphasisWords = (List<String>) speechMarkers.get("emphasis");
       if (emphasisWords != null) {
         narrative.setEmphasisWords(objectMapper.writeValueAsString(emphasisWords));

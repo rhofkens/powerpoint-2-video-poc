@@ -6,14 +6,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Play, Volume2, Video, RefreshCw, FileVideo, ImageIcon, Brain, MessageCircle, Loader2 } from "lucide-react";
+import { Play, Volume2, Video, RefreshCw, FileVideo, ImageIcon, Brain, MessageCircle, Loader2, User } from "lucide-react";
 import { apiService } from '@/services/api';
-import { Slide, SlideAnalysis, SlideNarrative } from '@/types/presentation';
+import { Slide, SlideAnalysis, SlideNarrative, AvatarVideo } from '@/types/presentation';
 import { useToast } from "@/hooks/use-toast";
 import { usePresentationStore } from '@/store/presentationStore';
 import { useAnalysisStore } from '@/store/analysisStore';
 import { SlideNarrativeWithTTS } from './SlideNarrativeWithTTS';
 import { SlideAnalysisCard } from './SlideAnalysisCard';
+import { AvatarVideoModal } from './AvatarVideoModal';
 
 interface SlidesGridProps {
   presentationId: string;
@@ -24,12 +25,14 @@ interface SlidesGridProps {
 
 export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, processingComplete }: SlidesGridProps) {
   const [slides, setSlides] = useState<Slide[]>([]);
-  const [audioPlayerOpen, setAudioPlayerOpen] = useState<string | null>(null);
   const [videoPlayerOpen, setVideoPlayerOpen] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analyzingSlides, setAnalyzingSlides] = useState<Set<string>>(new Set());
   const [generatingNarratives, setGeneratingNarratives] = useState<Set<string>>(new Set());
+  const [slideAvatarVideos, setSlideAvatarVideos] = useState<Map<string, AvatarVideo[]>>(new Map());
+  const [avatarModalOpen, setAvatarModalOpen] = useState<string | null>(null);
+  const [slidesWithSpeech, setSlidesWithSpeech] = useState<Set<string>>(new Set());
   
   // Modal states for detailed content view
   const [modalOpen, setModalOpen] = useState<{
@@ -61,6 +64,15 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
       const slidesData = await apiService.getSlides(presentationId);
       setSlides(slidesData);
       setStoreSlides(slidesData);
+      
+      // Check for speech on each slide
+      const speechSet = new Set<string>();
+      for (const slide of slidesData) {
+        if (slide.audioPath || (await checkSlideHasSpeech(slide.id))) {
+          speechSet.add(slide.id);
+        }
+      }
+      setSlidesWithSpeech(speechSet);
     } catch (err) {
       console.error('Error fetching slides:', err);
       setError('Failed to load slides');
@@ -71,6 +83,15 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
       });
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const checkSlideHasSpeech = async (slideId: string): Promise<boolean> => {
+    try {
+      const speechData = await apiService.getSlideSpeech(slideId);
+      return speechData !== null && speechData !== undefined;
+    } catch (error) {
+      return false;
     }
   };
 
@@ -143,6 +164,10 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
     }
     // Open the narrative modal and trigger speech generation
     setModalOpen({ slideId, type: 'narrative', autoGenerateSpeech: true });
+    // Mark slide as having speech after generation starts
+    setTimeout(() => {
+      setSlidesWithSpeech(prev => new Set(prev).add(slideId));
+    }, 2000);
   };
 
   const generateVideo = (slideId: string) => {
@@ -150,8 +175,36 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
     console.log(`Generating video for slide ${slideId}`);
   };
 
+  const loadSlideAvatarVideos = async (slideId: string) => {
+    try {
+      const videos = await apiService.getSlideAvatarVideos(slideId);
+      setSlideAvatarVideos(prev => new Map(prev).set(slideId, videos));
+      return videos;
+    } catch (error) {
+      console.error('Failed to load avatar videos:', error);
+      return [];
+    }
+  };
+
+  const openAvatarModal = async (slideId: string) => {
+    // Load avatar videos for this slide
+    await loadSlideAvatarVideos(slideId);
+    setAvatarModalOpen(slideId);
+  };
+
+  const checkHasSpeech = (slide: Slide) => {
+    // Check if slide has audio path or is tracked as having speech
+    return !!slide.audioPath || slidesWithSpeech.has(slide.id);
+  };
+
+  const checkHasNarrative = (slide: Slide) => {
+    // Check if slide has narrative
+    return !!slide.slideNarrative;
+  };
+
   const playAudio = (slideId: string) => {
-    setAudioPlayerOpen(slideId);
+    // Open the narrative modal to show speech playback and regeneration options
+    setModalOpen({ slideId, type: 'narrative', autoGenerateSpeech: false });
   };
 
   const playVideo = (slideId: string) => {
@@ -568,11 +621,34 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                       variant="success" 
                       size="sm"
                       onClick={() => playAudio(slide.id)}
+                      title="Play speech and manage regeneration"
                     >
                       <Play className="h-4 w-4 mr-2" />
                       Play Audio
                     </Button>
                   )}
+                </div>
+
+                {/* Avatar Video Generation */}
+                <div className="flex space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => openAvatarModal(slide.id)}
+                    disabled={!checkHasNarrative(slide) || !checkHasSpeech(slide)}
+                    title={
+                      !checkHasNarrative(slide) 
+                        ? "Generate narrative first" 
+                        : !checkHasSpeech(slide)
+                        ? "Generate speech first"
+                        : "Generate avatar video"
+                    }
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    {slideAvatarVideos.get(slide.id)?.some(v => v.status === 'COMPLETED') 
+                      ? 'Regenerate Avatar' 
+                      : 'Generate Avatar'}
+                  </Button>
                 </div>
 
                 {/* Video Generation */}
@@ -584,7 +660,7 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                       onClick={() => generateVideo(slide.id)}
                     >
                       <Video className="h-4 w-4 mr-2" />
-                      Generate Video & Speech
+                      Generate Video
                     </Button>
                   ) : (
                     <Button 
@@ -604,26 +680,6 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
         </div>
       )}
 
-      {/* Audio Player Dialog */}
-      <Dialog open={audioPlayerOpen !== null} onOpenChange={() => setAudioPlayerOpen(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Audio Player - Slide {slides.find(s => s.id === audioPlayerOpen)?.slideNumber}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="bg-muted/50 p-4 rounded-lg">
-              <p className="text-sm mb-3">Playing narrative for slide {slides.find(s => s.id === audioPlayerOpen)?.slideNumber}</p>
-              <audio controls className="w-full">
-                <source src="/path/to/audio.mp3" type="audio/mpeg" />
-                Your browser does not support the audio element.
-              </audio>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Mock audio player - In production, this would play the generated speech for the slide narrative.
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Video Player Dialog */}
       <Dialog open={videoPlayerOpen !== null} onOpenChange={() => setVideoPlayerOpen(null)}>
@@ -663,6 +719,28 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      {/* Avatar Video Modal */}
+      {avatarModalOpen && (
+        <AvatarVideoModal
+          open={avatarModalOpen !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setAvatarModalOpen(null);
+              // Reload avatar videos to update button state
+              if (avatarModalOpen) {
+                loadSlideAvatarVideos(avatarModalOpen);
+              }
+            }
+          }}
+          slideId={avatarModalOpen}
+          presentationId={presentationId}
+          slideNumber={slides.find(s => s.id === avatarModalOpen)?.slideNumber || 1}
+          hasNarrative={checkHasNarrative(slides.find(s => s.id === avatarModalOpen) || {} as Slide)}
+          hasSpeech={checkHasSpeech(slides.find(s => s.id === avatarModalOpen) || {} as Slide)}
+          existingAvatarVideo={slideAvatarVideos.get(avatarModalOpen)?.[slideAvatarVideos.get(avatarModalOpen)!.length - 1]}
+        />
+      )}
 
     </div>
   );
