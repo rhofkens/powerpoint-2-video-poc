@@ -55,6 +55,8 @@ jobs:
       run: |
         cd frontend
         npm ci
+        # Install platform-specific Rollup binary for Linux
+        npm install --no-save @rollup/rollup-linux-x64-gnu
 
     - name: Cache Maven dependencies
       uses: actions/cache@v4
