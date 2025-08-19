@@ -392,28 +392,15 @@ public class AvatarVideoService {
 
     // Try to get published audio from R2
     try {
-      List<AssetDto> slideAssets = r2AssetService.listSlideAssets(slide.getId());
-
-      // Find audio asset
-      AssetDto audioAsset =
-          slideAssets.stream()
-              .filter(asset -> asset.getAssetType() == AssetType.SLIDE_AUDIO)
-              .filter(asset -> asset.getUploadStatus() == UploadStatus.COMPLETED)
-              .findFirst()
-              .orElse(null);
-
-      if (audioAsset != null && audioAsset.getDownloadUrl() != null) {
-        log.info("Using published audio from R2 for slide: {}", slide.getId());
-        return audioAsset.getDownloadUrl();
-      }
-
-      // If no published audio, try to publish existing audio
+      // Always force republish to ensure we're using the latest audio file
+      // This ensures that when audio is regenerated with a different voice,
+      // the new audio is uploaded to R2 and used for avatar generation
       log.info(
-          "No published audio found, attempting to publish existing audio for slide: {}",
+          "Publishing audio to R2 with force republish to ensure latest version for slide: {}",
           slide.getId());
       AssetDto publishedAudio =
           r2AssetService.publishExistingAsset(
-              slide.getPresentation().getId(), slide.getId(), AssetType.SLIDE_AUDIO);
+              slide.getPresentation().getId(), slide.getId(), AssetType.SLIDE_AUDIO, true);
 
       if (publishedAudio != null && publishedAudio.getDownloadUrl() != null) {
         log.info("Successfully published audio to R2 for slide: {}", slide.getId());

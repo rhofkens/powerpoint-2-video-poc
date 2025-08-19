@@ -108,6 +108,20 @@ public class R2AssetService {
    * @return asset DTO with upload details
    */
   public AssetDto publishExistingAsset(UUID presentationId, UUID slideId, AssetType assetType) {
+    return publishExistingAsset(presentationId, slideId, assetType, false);
+  }
+
+  /**
+   * Publish an existing asset file to R2, with option to force republish.
+   *
+   * @param presentationId the presentation ID
+   * @param slideId the slide ID (optional)
+   * @param assetType the type of asset
+   * @param forceRepublish if true, will delete existing asset and upload new one
+   * @return asset DTO with upload details
+   */
+  public AssetDto publishExistingAsset(
+      UUID presentationId, UUID slideId, AssetType assetType, boolean forceRepublish) {
     try {
       // Locate the file based on asset type
       Path filePath = locateAssetFile(presentationId, slideId, assetType);
@@ -146,10 +160,38 @@ public class R2AssetService {
       }
 
       if (!existingAssets.isEmpty()) {
-        log.info("Asset already exists for {} - {}", assetType, presentationId);
-        AssetMetadata existing = existingAssets.get(0);
-        PresignedUrl downloadUrl = presignedUrlService.generateDownloadUrl(existing);
-        return convertToDto(existing, downloadUrl);
+        if (forceRepublish) {
+          log.info(
+              "Force republish enabled, deleting existing asset for {} - {}",
+              assetType,
+              presentationId);
+          // Delete existing assets from R2 and metadata
+          for (AssetMetadata existing : existingAssets) {
+            try {
+              // Delete from R2
+              S3Client s3Client = r2ClientFactory.getS3Client();
+              DeleteObjectRequest deleteRequest =
+                  DeleteObjectRequest.builder()
+                      .bucket(existing.getBucketName())
+                      .key(existing.getObjectKey())
+                      .build();
+              s3Client.deleteObject(deleteRequest);
+              log.info(
+                  "Deleted existing asset from R2: {}/{}",
+                  existing.getBucketName(),
+                  existing.getObjectKey());
+            } catch (Exception e) {
+              log.warn("Failed to delete existing asset from R2: {}", e.getMessage());
+            }
+            // Delete metadata
+            assetMetadataService.deleteAsset(existing.getId());
+          }
+        } else {
+          log.info("Asset already exists for {} - {}", assetType, presentationId);
+          AssetMetadata existing = existingAssets.get(0);
+          PresignedUrl downloadUrl = presignedUrlService.generateDownloadUrl(existing);
+          return convertToDto(existing, downloadUrl);
+        }
       }
 
       // Create asset metadata
