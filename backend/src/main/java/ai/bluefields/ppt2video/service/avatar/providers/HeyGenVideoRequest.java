@@ -66,17 +66,41 @@ public class HeyGenVideoRequest {
     @JsonProperty("type")
     private String type;
 
-    /** Avatar ID */
+    /** Avatar ID (for type="avatar") */
     @JsonProperty("avatar_id")
     private String avatarId;
 
-    /** Avatar scale (0-5.0, default 1.0) */
+    /** Talking Photo ID (for type="talking_photo") */
+    @JsonProperty("talking_photo_id")
+    private String talkingPhotoId;
+
+    /** Scale (0-5.0 for avatar, 0-2.0 for talking_photo, default 1.0) */
     @JsonProperty("scale")
     private Double scale;
 
-    /** Avatar style (normal, circle, closeUp) */
+    /** Avatar style (normal, circle, closeUp) - for type="avatar" */
     @JsonProperty("avatar_style")
     private String avatarStyle;
+
+    /** Talking Photo style (square, circle) - for type="talking_photo" */
+    @JsonProperty("talking_photo_style")
+    private String talkingPhotoStyle;
+
+    /** Talking style (stable, expressive) - for type="talking_photo" */
+    @JsonProperty("talking_style")
+    private String talkingStyle;
+
+    /** Expression (default, happy) - for type="talking_photo" */
+    @JsonProperty("expression")
+    private String expression;
+
+    /** Whether to enhance photo resolution - for type="talking_photo" */
+    @JsonProperty("super_resolution")
+    private Boolean superResolution;
+
+    /** Whether to do matting - for type="talking_photo" */
+    @JsonProperty("matting")
+    private Boolean matting;
   }
 
   @Data
@@ -134,7 +158,7 @@ public class HeyGenVideoRequest {
   }
 
   /**
-   * Create a request with audio URL source.
+   * Create a request with audio URL source for regular avatars.
    *
    * @param avatarId the avatar ID
    * @param audioUrl the audio URL
@@ -151,6 +175,40 @@ public class HeyGenVideoRequest {
                     .avatarId(avatarId)
                     .scale(1.0)
                     .avatarStyle("normal")
+                    .build())
+            .voice(VoiceInput.builder().type("audio").audioUrl(audioUrl).build())
+            .background(Background.builder().type("color").value(backgroundColor).build())
+            .build();
+
+    return HeyGenVideoRequest.builder()
+        .videoInputs(List.of(videoInput))
+        .dimension(Dimension.builder().width(1280).height(720).build())
+        .caption(false)
+        .test(false)
+        .build();
+  }
+
+  /**
+   * Create a request with audio URL source for talking photos.
+   *
+   * @param talkingPhotoId the talking photo ID (without TP- prefix)
+   * @param audioUrl the audio URL
+   * @param backgroundColor the background color
+   * @return the request object
+   */
+  public static HeyGenVideoRequest withTalkingPhotoAndAudioUrl(
+      String talkingPhotoId, String audioUrl, String backgroundColor) {
+    VideoInputs videoInput =
+        VideoInputs.builder()
+            .character(
+                CharacterSettings.builder()
+                    .type("talking_photo")
+                    .talkingPhotoId(talkingPhotoId)
+                    .scale(1.0)
+                    .talkingStyle("expressive")
+                    .expression("happy")
+                    .superResolution(true)
+                    .matting(true)
                     .build())
             .voice(VoiceInput.builder().type("audio").audioUrl(audioUrl).build())
             .background(Background.builder().type("color").value(backgroundColor).build())

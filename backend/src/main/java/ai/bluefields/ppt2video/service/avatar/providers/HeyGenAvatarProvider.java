@@ -54,9 +54,24 @@ public class HeyGenAvatarProvider implements AvatarProvider {
               ? request.getBackgroundColor()
               : configuration.getAvatar().getBackgroundColor();
 
-      // Create HeyGen request
-      HeyGenVideoRequest heyGenRequest =
-          HeyGenVideoRequest.withAudioUrl(avatarId, audioUrl, backgroundColor);
+      // Create HeyGen request based on avatar type
+      HeyGenVideoRequest heyGenRequest;
+
+      // Check if this is a talking photo (custom avatar) by looking for TP- prefix
+      if (avatarId != null && avatarId.startsWith("TP-")) {
+        // Extract the actual talking photo ID by removing the TP- prefix
+        String talkingPhotoId = avatarId.substring(3);
+        log.info("Detected talking photo with ID: {}", talkingPhotoId);
+
+        // Create talking photo request with specified settings
+        heyGenRequest =
+            HeyGenVideoRequest.withTalkingPhotoAndAudioUrl(
+                talkingPhotoId, audioUrl, backgroundColor);
+      } else {
+        // Regular avatar request
+        log.debug("Using regular avatar: {}", avatarId);
+        heyGenRequest = HeyGenVideoRequest.withAudioUrl(avatarId, audioUrl, backgroundColor);
+      }
 
       // Set test mode if configured
       heyGenRequest.setTest(configuration.getVideo().isTestMode());
