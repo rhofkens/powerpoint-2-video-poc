@@ -8,6 +8,7 @@ import ai.bluefields.ppt2video.entity.AvatarVideo;
 import ai.bluefields.ppt2video.repository.AvatarVideoRepository;
 import ai.bluefields.ppt2video.service.R2AssetService;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -218,17 +219,36 @@ public class AvatarVideoMonitorService {
         java.nio.file.Files.move(
             tempFile, targetFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
-        // Use the existing publish method
+        // Use the existing publish method with forceRepublish=true
+        // to ensure the new video is uploaded even if an old one exists
         AssetDto publishedAsset =
             r2AssetService.publishExistingAsset(
                 avatarVideo.getPresentation().getId(),
                 avatarVideo.getSlide().getId(),
-                AssetType.SLIDE_AVATAR_VIDEO);
+                AssetType.SLIDE_AVATAR_VIDEO,
+                true); // Force republish to upload the new video
 
-        // Update avatar video with published URL
+        // Update avatar video with published URL and R2 asset ID
         avatarVideo.setPublishedUrl(publishedAsset.getDownloadUrl());
+        avatarVideo.setR2AssetId(publishedAsset.getId());
         avatarVideo.setPublishedAt(LocalDateTime.now());
         avatarVideoRepository.save(avatarVideo);
+
+        // Clear published URLs and HeyGen URLs from any older avatar videos for this slide
+        // since their R2 assets have been deleted by forceRepublish
+        List<AvatarVideo> olderVideos =
+            avatarVideoRepository.findBySlideId(avatarVideo.getSlide().getId());
+        for (AvatarVideo oldVideo : olderVideos) {
+          if (!oldVideo.getId().equals(avatarVideo.getId())) {
+            if (oldVideo.getPublishedUrl() != null || oldVideo.getVideoUrl() != null) {
+              log.info("Clearing stale URLs from older avatar video: {}", oldVideo.getId());
+              oldVideo.setPublishedUrl(null);
+              oldVideo.setVideoUrl(null); // Also clear HeyGen URL to prevent confusion
+              // Don't clear R2 asset ID as it's useful for tracking what was deleted
+              avatarVideoRepository.save(oldVideo);
+            }
+          }
+        }
 
         log.info("Successfully auto-published avatar video {} to R2", avatarVideo.getId());
 

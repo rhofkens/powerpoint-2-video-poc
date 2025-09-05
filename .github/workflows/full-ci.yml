@@ -42,21 +42,11 @@ jobs:
         java-version: '24'
         distribution: 'temurin'
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
+    - name: Download backend artifact
+      uses: actions/download-artifact@v4
       with:
-        node-version: '18'
-        cache: 'npm'
-
-    - name: Install root dependencies
-      run: npm install
-
-    - name: Install frontend dependencies
-      run: |
-        cd frontend
-        npm ci
-        # Install platform-specific Rollup binary for Linux
-        npm install --no-save @rollup/rollup-linux-x64-gnu
+        name: backend-build
+        path: backend/target
 
     - name: Cache Maven dependencies
       uses: actions/cache@v4
@@ -65,29 +55,25 @@ jobs:
         key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2
 
-    - name: Build backend
+    - name: Verify backend startup and health
       run: |
-        cd backend
-        mvn clean package -DskipTests
-      env:
-        PPT2VIDEOPOC_DB_PWD: test_password
-
-    - name: Build frontend
-      run: |
-        cd frontend
-        npm run build
-
-    - name: Verify integration (health check)
-      run: |
-        cd backend
-        mvn spring-boot:run -Dspring-boot.run.profiles=test &
+        # Start the backend using the built JAR
+        java -jar backend/target/*.jar --spring.profiles.active=test &
         BACKEND_PID=$!
+        
+        # Wait for startup
+        echo "Waiting for backend to start..."
         sleep 30
         
         # Test health endpoint
+        echo "Testing health endpoint..."
         curl -f http://localhost:8080/api/health || exit 1
+        echo "Health check passed!"
         
         # Clean up
         kill $BACKEND_PID
       env:
         PPT2VIDEOPOC_DB_PWD: test_password
+        SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/ppt2video_poc_test
+        SPRING_DATASOURCE_USERNAME: ppt2video_db_user
+        SPRING_DATASOURCE_PASSWORD: test_password

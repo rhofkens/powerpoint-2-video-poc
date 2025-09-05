@@ -104,4 +104,14 @@ public interface AvatarVideoRepository extends JpaRepository<AvatarVideo, UUID> 
               + "AND created_at < CURRENT_TIMESTAMP - CAST(:minutes || ' minutes' AS INTERVAL)",
       nativeQuery = true)
   List<AvatarVideo> findStuckVideos(@Param("minutes") int minutes);
+
+  /**
+   * Find completed avatar videos by slide ID.
+   *
+   * @param slideId the slide ID
+   * @return list of completed avatar videos
+   */
+  default List<AvatarVideo> findBySlideIdAndStatusCompleted(UUID slideId) {
+    return findBySlideIdAndStatus(slideId, AvatarGenerationStatusType.COMPLETED);
+  }
 }

@@ -31,6 +31,7 @@ public class AvatarVideoResponse {
   private String backgroundColor;
   private String audioUrl;
   private String videoUrl;
+  private String publishedUrl;
   private UUID r2AssetId;
   private Double durationSeconds;
   private Integer progressPercentage;
