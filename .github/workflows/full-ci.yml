@@ -58,7 +58,10 @@ jobs:
     - name: Verify backend startup and health
       run: |
         # Start the backend using the built JAR
-        java -jar backend/target/*.jar --spring.profiles.active=test &
+        # Set JPA to validate only (not create/update) to avoid conflicts with Flyway
+        java -jar backend/target/*.jar \
+          --spring.profiles.active=test \
+          --spring.jpa.hibernate.ddl-auto=none &
         BACKEND_PID=$!
         
         # Wait for startup
