@@ -1,0 +1,525 @@
+{
+  "timeline": {
+    "background": "#FFFFFF",
+    "tracks": [
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "html",
+              "width": 640,
+              "height": 46,
+              "html": "<p data-html-type=\"text\">Consulting Proposal for Tembi</p>",
+              "css": "p { color: #ffffff; font-size: 39px; font-family: 'Clear Sans'; text-align: center; }"
+            },
+            "offset": {
+              "x": -0.209,
+              "y": -0.317
+            },
+            "transition": {
+              "in": "wipeRight",
+              "out": "wipeLeft"
+            },
+            "start": 0.7,
+            "length": 4.3,
+            "position": "center"
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "html",
+              "width": 457,
+              "height": 46,
+              "html": "<p data-html-type=\"text\">By Roeland Hofkens, Bluefields AI</p>",
+              "css": "p { color: #282828; font-size: 26px; font-family: 'Clear Sans'; text-align: center; }"
+            },
+            "offset": {
+              "x": -0.125,
+              "y": -0.376
+            },
+            "transition": {
+              "in": "wipeLeft",
+              "out": "wipeRight"
+            },
+            "start": 0.8,
+            "length": 4.3,
+            "position": "center"
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "video",
+              "src": "https://shotstack-assets.s3.ap-southeast-2.amazonaws.com/overlays/lower-third-in-example.mov",
+              "volume": 1
+            },
+            "offset": {
+              "x": -0.18,
+              "y": -0.347
+            },
+            "position": "center",
+            "fit": "none",
+            "start": 0.5,
+            "length": 4
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "video",
+              "src": "https://shotstack-assets.s3.ap-southeast-2.amazonaws.com/overlays/lower-third-out-example.mov",
+              "volume": 1
+            },
+            "start": 4,
+            "length": 1.5,
+            "offset": {
+              "x": -0.18,
+              "y": -0.347
+            },
+            "fit": "none"
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": "8",
+            "asset": {
+              "type": "video",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2h-0ce0r-0gh5a-42y3j-98kvvf/source.mp4",
+              "volume": 1
+            },
+            "start": 0,
+            "scale": 1
+          },
+          {
+            "asset": {
+              "type": "luma",
+              "src": "https://shotstack-assets.s3.ap-southeast-2.amazonaws.com/luma-mattes/grids/pattern-3.mp4"
+            },
+            "start": 6,
+            "length": 2
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 30.84,
+            "asset": {
+              "type": "video",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2r-q2tdg-hg732-5xnw9-nysprd/source.mp4",
+              "chromaKey": {
+                "color": "#F5DEB3",
+                "threshold": 15,
+                "halo": 50
+              },
+              "volume": 1
+            },
+            "start": 9.33,
+            "scale": 0.519,
+            "offset": {
+              "x": 0.371,
+              "y": -0.241
+            },
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            }
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 35.36,
+            "asset": {
+              "type": "image",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2h-g9a6c-xwr5v-bfyxk-jbd5gp/source.png"
+            },
+            "start": 6.41
+          },
+          {
+            "asset": {
+              "type": "luma",
+              "src": "https://templates.shotstack.io/basic/asset/video/luma/double-arrow/double-arrow-right-45.mp4"
+            },
+            "start": 39.78,
+            "length": 2
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 35.12,
+            "asset": {
+              "type": "video",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2r-stkvy-zt6ns-x4n06-mfvk13/source.mp4",
+              "volume": 1,
+              "chromaKey": {
+                "color": "#F5DEB3",
+                "threshold": 15,
+                "halo": 50
+              }
+            },
+            "start": 42.86,
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            },
+            "scale": 0.519,
+            "offset": {
+              "x": 0.371,
+              "y": -0.241
+            },
+            "position": "center"
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 39.69,
+            "asset": {
+              "type": "image",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2r-sh6qz-m8f5r-ya3ga-63x2n5/source.png"
+            },
+            "start": 39.81,
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            }
+          },
+          {
+            "asset": {
+              "type": "luma",
+              "src": "https://templates.shotstack.io/basic/asset/video/luma/double-arrow/double-arrow-right-45.mp4"
+            },
+            "start": 77.87,
+            "length": 2
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 39.4,
+            "asset": {
+              "type": "video",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2v-t2450-c614a-vzx52-26saj7/source.mp4",
+              "volume": 1,
+              "chromaKey": {
+                "color": "#F5DEB3",
+                "threshold": 15,
+                "halo": 50
+              }
+            },
+            "start": 80.51,
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            },
+            "scale": 0.519,
+            "offset": {
+              "x": 0.371,
+              "y": -0.241
+            },
+            "position": "center"
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 43.03,
+            "asset": {
+              "type": "image",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2h-2x6dy-k82pb-27g0c-ks1k0b/source.png"
+            },
+            "start": 78.51,
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            }
+          },
+          {
+            "asset": {
+              "type": "luma",
+              "src": "https://templates.shotstack.io/basic/asset/video/luma/double-arrow/double-arrow-right-45.mp4"
+            },
+            "start": 119.75,
+            "length": 2
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 58.52,
+            "asset": {
+              "type": "video",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2h-04ffv-mts07-tp8ca-j6ch9k/source.mp4",
+              "chromaKey": {
+                "color": "#1E3A5F",
+                "threshold": 15,
+                "halo": 50
+              },
+              "volume": 1
+            },
+            "start": 122.58,
+            "fit": "crop",
+            "scale": 0.519,
+            "offset": {
+              "x": 0.371,
+              "y": -0.241
+            },
+            "position": "center",
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            }
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 61.07,
+            "asset": {
+              "type": "image",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2g-zx82t-0qcv0-rh1r3-sdjysq/source.png"
+            },
+            "start": 120.66,
+            "transition": {
+              "out": "fade",
+              "in": "fade"
+            },
+            "scale": 1
+          },
+          {
+            "asset": {
+              "type": "luma",
+              "src": "https://templates.shotstack.io/basic/asset/video/luma/double-arrow/double-arrow-right-45.mp4"
+            },
+            "start": 180.28,
+            "length": 2
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 46.56,
+            "asset": {
+              "type": "video",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2v-vcy3n-bwhkd-txr1v-1vs91x/source.mp4",
+              "volume": 1,
+              "chromaKey": {
+                "color": "#F5DEB3",
+                "threshold": 15,
+                "halo": 50
+              }
+            },
+            "start": 183.43,
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            },
+            "scale": 0.519,
+            "offset": {
+              "x": 0.371,
+              "y": -0.241
+            },
+            "position": "center"
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 51.52,
+            "asset": {
+              "type": "image",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2r-shrky-6ew6w-3z7ss-572356/source.png"
+            },
+            "start": 180.54,
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            }
+          },
+          {
+            "asset": {
+              "type": "luma",
+              "src": "https://templates.shotstack.io/basic/asset/video/luma/double-arrow/double-arrow-right-45.mp4"
+            },
+            "start": 230.28,
+            "length": 2
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 41.88,
+            "asset": {
+              "type": "video",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2v-w3ffa-5p57j-z23pb-bg1xtw/source.mp4",
+              "volume": 1,
+              "chromaKey": {
+                "color": "#F5DEB3",
+                "threshold": 15,
+                "halo": 50
+              }
+            },
+            "start": 232.92,
+            "scale": 0.519,
+            "offset": {
+              "x": 0.371,
+              "y": -0.241
+            },
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            }
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 45.66,
+            "asset": {
+              "type": "image",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2r-sja8w-9jppp-anp5n-7q22ky/source.png"
+            },
+            "start": 231.03,
+            "transition": {
+              "out": "fade",
+              "in": "fade"
+            }
+          },
+          {
+            "asset": {
+              "type": "luma",
+              "src": "https://templates.shotstack.io/basic/asset/video/luma/double-arrow/double-arrow-right-45.mp4"
+            },
+            "start": 274.95,
+            "length": 2
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 38.28,
+            "asset": {
+              "type": "video",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2w-4kbzc-wj0dx-8r877-w75jd8/source.mp4",
+              "volume": 1,
+              "chromaKey": {
+                "color": "#F5DEB3",
+                "threshold": 15,
+                "halo": 50
+              }
+            },
+            "start": 278.35,
+            "scale": 0.519,
+            "offset": {
+              "x": 0.371,
+              "y": -0.241
+            },
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            },
+            "position": "center"
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 43.67,
+            "asset": {
+              "type": "image",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2r-sk1v7-zyxck-9vshm-taxp8r/source.png"
+            },
+            "start": 275.43,
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            }
+          },
+          {
+            "asset": {
+              "type": "luma",
+              "src": "https://templates.shotstack.io/basic/asset/video/luma/double-arrow/double-arrow-right-45.mp4"
+            },
+            "start": 317.44,
+            "length": 2
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 19.72,
+            "asset": {
+              "type": "video",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2w-eav8w-r6fzp-7r6a3-ywqa1c/source.mp4",
+              "chromaKey": {
+                "color": "#F5DEB3",
+                "threshold": 15,
+                "halo": 50
+              },
+              "volume": 1
+            },
+            "start": 320.21,
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            },
+            "scale": 0.519,
+            "offset": {
+              "x": 0.371,
+              "y": -0.241
+            }
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "length": 27.95,
+            "asset": {
+              "type": "image",
+              "src": "https://shotstack-ingest-api-stage-sources.s3.ap-southeast-2.amazonaws.com/1sao1g06d7/zzz01k2r-skbbc-e1deq-6n7bf-zbm7fz/source.png"
+            },
+            "start": 318.07,
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "output": {
+    "format": "mp4",
+    "fps": 25,
+    "size": {
+      "width": 1920,
+      "height": 1080
+    }
+  }
+}
