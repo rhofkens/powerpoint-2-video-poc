@@ -80,3 +80,4 @@ jobs:
         SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/ppt2video_poc_test
         SPRING_DATASOURCE_USERNAME: ppt2video_db_user
         SPRING_DATASOURCE_PASSWORD: test_password
+        SPRING_AI_OPENAI_API_KEY: test-key-for-ci
