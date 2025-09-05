@@ -14,11 +14,7 @@ CREATE TABLE IF NOT EXISTS slides (
     generated_narrative TEXT,
     processing_status VARCHAR(50) NOT NULL DEFAULT 'EXTRACTED',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
-    CONSTRAINT fk_slides_presentation 
-        FOREIGN KEY (presentation_id) REFERENCES presentations(id) 
-        ON DELETE CASCADE
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create index on presentation_id for joins
