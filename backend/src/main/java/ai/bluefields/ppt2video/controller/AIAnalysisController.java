@@ -7,13 +7,17 @@ import ai.bluefields.ppt2video.dto.GenerateNarrativeRequestDto;
 import ai.bluefields.ppt2video.dto.ShortenNarrativeResponse;
 import ai.bluefields.ppt2video.entity.DeckAnalysis;
 import ai.bluefields.ppt2video.entity.Presentation;
+import ai.bluefields.ppt2video.entity.Slide;
 import ai.bluefields.ppt2video.entity.SlideAnalysis;
 import ai.bluefields.ppt2video.entity.SlideNarrative;
 import ai.bluefields.ppt2video.repository.PresentationRepository;
+import ai.bluefields.ppt2video.repository.SlideNarrativeRepository;
+import ai.bluefields.ppt2video.repository.SlideRepository;
 import ai.bluefields.ppt2video.service.ai.AnalysisStatusService;
 import ai.bluefields.ppt2video.service.ai.DeckAnalysisService;
 import ai.bluefields.ppt2video.service.ai.narrative.BatchNarrativeOrchestrator;
 import ai.bluefields.ppt2video.service.ai.narrative.NarrativeGenerationService;
+import ai.bluefields.ppt2video.service.ai.narrative.optimization.EmotionalEnhancer;
 import ai.bluefields.ppt2video.service.ai.slideanalysis.BatchSlideAnalysisOrchestrator;
 import ai.bluefields.ppt2video.service.ai.slideanalysis.SlideAnalysisService;
 import java.util.List;
@@ -46,6 +50,10 @@ public class AIAnalysisController {
       narrativeOptimizationOrchestrator;
   private final PresentationRepository presentationRepository;
   private final AnalysisStatusService analysisStatusService;
+  private final SlideRepository slideRepository;
+  private final SlideNarrativeRepository slideNarrativeRepository;
+  private final ai.bluefields.ppt2video.service.ai.narrative.optimization.EmotionalEnhancerFactory
+      emotionalEnhancerFactory;
 
   /**
    * Trigger deck analysis for a presentation.
@@ -275,6 +283,62 @@ public class AIAnalysisController {
               ApiResponse.<SlideNarrative>builder()
                   .success(false)
                   .message("Failed to get narrative: " + e.getMessage())
+                  .build());
+    }
+  }
+
+  /**
+   * Enhance a slide's narrative with emotional markers for TTS.
+   *
+   * @param slideId The slide ID
+   * @return The enhanced narrative
+   */
+  @PostMapping("/ai/slides/{id}/enhance-narrative")
+  public ResponseEntity<ApiResponse<SlideNarrative>> enhanceNarrative(
+      @PathVariable("id") UUID slideId) {
+    log.info("Received request to enhance narrative for slide: {}", slideId);
+
+    try {
+      // Get the slide
+      Slide slide =
+          slideRepository
+              .findById(slideId)
+              .orElseThrow(() -> new IllegalArgumentException("Slide not found: " + slideId));
+
+      // Get the active narrative
+      SlideNarrative narrative =
+          slideNarrativeRepository
+              .findActiveNarrativeBySlideId(slideId)
+              .orElseThrow(
+                  () -> new IllegalArgumentException("No narrative found for slide: " + slideId));
+
+      // Get the ElevenLabs enhancer
+      EmotionalEnhancer enhancer = emotionalEnhancerFactory.getEnhancer("elevenlabs");
+
+      // Enhance the narrative
+      String enhancedText = enhancer.enhanceNarrative(narrative);
+
+      log.info("Successfully enhanced narrative for slide: {}", slideId);
+
+      return ResponseEntity.ok(
+          ApiResponse.<SlideNarrative>builder()
+              .success(true)
+              .data(narrative)
+              .message("Narrative enhanced with emotional markers")
+              .build());
+
+    } catch (IllegalArgumentException e) {
+      log.error("Validation error while enhancing narrative: {}", e.getMessage());
+      return ResponseEntity.status(HttpStatus.NOT_FOUND)
+          .body(
+              ApiResponse.<SlideNarrative>builder().success(false).message(e.getMessage()).build());
+    } catch (Exception e) {
+      log.error("Failed to enhance narrative for slide: {}", slideId, e);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body(
+              ApiResponse.<SlideNarrative>builder()
+                  .success(false)
+                  .message("Failed to enhance narrative: " + e.getMessage())
                   .build());
     }
   }

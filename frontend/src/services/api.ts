@@ -338,6 +338,19 @@ class ApiService {
   }
 
   /**
+   * Enhances a slide's narrative with emotional markers for TTS.
+   * 
+   * @param slideId - The UUID of the slide
+   * @returns Promise resolving to enhanced narrative
+   */
+  async enhanceSlideNarrative(slideId: string): Promise<SlideNarrative> {
+    const response = await this.axiosInstance.post<{ success: boolean; data: SlideNarrative; message: string }>(
+      `/ai/slides/${slideId}/enhance-narrative`
+    );
+    return response.data.data;
+  }
+
+  /**
    * Shortens an existing narrative by a specified percentage.
    * 
    * @param narrativeId - The UUID of the narrative to shorten

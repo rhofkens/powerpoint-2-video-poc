@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Play, Volume2, Video, RefreshCw, FileVideo, ImageIcon, Brain, MessageCircle, Loader2, User, ChevronDown, Scissors } from "lucide-react";
+import { Play, Volume2, Video, RefreshCw, FileVideo, ImageIcon, Brain, MessageCircle, Loader2, User, ChevronDown, Scissors, Sparkles } from "lucide-react";
 import { apiService } from '@/services/api';
 import { Slide, SlideAnalysis, SlideNarrative, AvatarVideo } from '@/types/presentation';
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +36,7 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
   const [error, setError] = useState<string | null>(null);
   const [analyzingSlides, setAnalyzingSlides] = useState<Set<string>>(new Set());
   const [generatingNarratives, setGeneratingNarratives] = useState<Set<string>>(new Set());
+  const [enhancingNarratives, setEnhancingNarratives] = useState<Set<string>>(new Set());
   const [slideAvatarVideos, setSlideAvatarVideos] = useState<Map<string, AvatarVideo[]>>(new Map());
   const [avatarModalOpen, setAvatarModalOpen] = useState<string | null>(null);
   const [slidesWithSpeech, setSlidesWithSpeech] = useState<Set<string>>(new Set());
@@ -152,6 +153,42 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
       });
     } finally {
       setGeneratingNarratives(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(slideId);
+        return newSet;
+      });
+    }
+  };
+
+  const enhanceNarrative = async (slideId: string) => {
+    const slide = slides.find(s => s.id === slideId);
+    if (!slide?.slideNarrative) {
+      toast({
+        title: "No Narrative Available",
+        description: "Please generate a narrative for this slide first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setEnhancingNarratives(prev => new Set(prev).add(slideId));
+    try {
+      const enhancedNarrative = await apiService.enhanceSlideNarrative(slideId);
+      toast({
+        title: "Narrative enhanced",
+        description: "Emotional markers have been added to the narrative"
+      });
+      // Refresh slides to show enhanced narrative
+      await fetchSlides();
+    } catch (err) {
+      console.error('Error enhancing narrative:', err);
+      toast({
+        title: "Enhancement failed",
+        description: "Failed to enhance narrative. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setEnhancingNarratives(prev => {
         const newSet = new Set(prev);
         newSet.delete(slideId);
         return newSet;
@@ -602,12 +639,17 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                       <Button 
                         variant="outline" 
                         size="sm"
-                        disabled={generatingNarratives.has(slide.id)}
+                        disabled={generatingNarratives.has(slide.id) || enhancingNarratives.has(slide.id)}
                       >
                         {generatingNarratives.has(slide.id) ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                             Generating...
+                          </>
+                        ) : enhancingNarratives.has(slide.id) ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Enhancing...
                           </>
                         ) : (
                           <>
@@ -624,10 +666,16 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
                         {slide.slideNarrative ? 'Regenerate Narrative' : 'Generate Narrative'}
                       </DropdownMenuItem>
                       {slide.slideNarrative && (
-                        <DropdownMenuItem onClick={() => openModal(slide.id, 'narrative', true)}>
-                          <Scissors className="h-4 w-4 mr-2" />
-                          Shorten Narrative
-                        </DropdownMenuItem>
+                        <>
+                          <DropdownMenuItem onClick={() => enhanceNarrative(slide.id)}>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Enhance with Emotions
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openModal(slide.id, 'narrative', true)}>
+                            <Scissors className="h-4 w-4 mr-2" />
+                            Shorten Narrative
+                          </DropdownMenuItem>
+                        </>
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>

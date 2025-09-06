@@ -22,28 +22,28 @@ public class NarrativeLengthCalculator {
   private final SlideTypeDetector slideTypeDetector;
 
   // Duration ranges for different slide types (in seconds)
-  @Value("${app.narrative.duration.intro.min:30}")
+  @Value("${app.narrative.duration.intro.min:5}")
   private int introDurationMin;
 
-  @Value("${app.narrative.duration.intro.max:45}")
+  @Value("${app.narrative.duration.intro.max:15}")
   private int introDurationMax;
 
-  @Value("${app.narrative.duration.separator.min:8}")
+  @Value("${app.narrative.duration.separator.min:3}")
   private int separatorDurationMin;
 
-  @Value("${app.narrative.duration.separator.max:12}")
+  @Value("${app.narrative.duration.separator.max:8}")
   private int separatorDurationMax;
 
-  @Value("${app.narrative.duration.thank-you.min:10}")
+  @Value("${app.narrative.duration.thank-you.min:6}")
   private int thankYouDurationMin;
 
-  @Value("${app.narrative.duration.thank-you.max:20}")
+  @Value("${app.narrative.duration.thank-you.max:12}")
   private int thankYouDurationMax;
 
-  @Value("${app.narrative.duration.content.min:15}")
+  @Value("${app.narrative.duration.content.min:5}")
   private int contentDurationMin;
 
-  @Value("${app.narrative.duration.content.max:60}")
+  @Value("${app.narrative.duration.content.max:30}")
   private int contentDurationMax;
 
   // Content density thresholds

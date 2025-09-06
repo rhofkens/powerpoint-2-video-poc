@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,9 @@ public class NarrativeContextService {
   private final SlideRepository slideRepository;
   private final DeckAnalysisRepository deckAnalysisRepository;
   private final ObjectMapper objectMapper;
+
+  @Value("${app.narrative.include-visual-concepts:false}")
+  private boolean includeVisualConcepts;
 
   /**
    * Prepare complete context data for narrative generation.
@@ -124,7 +128,9 @@ public class NarrativeContextService {
     if (slide.getSlideAnalysis() != null) {
       SlideAnalysis analysis = slide.getSlideAnalysis();
       slideData.put("generalMessage", analysis.getGeneralMessage());
-      slideData.put("visualConcepts", analysis.getVisualConcepts());
+      if (includeVisualConcepts) {
+        slideData.put("visualConcepts", analysis.getVisualConcepts());
+      }
       slideData.put("keyPoints", analysis.getKeyPoints());
       slideData.put("emphasisLevel", analysis.getEmphasisLevel());
     }
@@ -142,7 +148,9 @@ public class NarrativeContextService {
     if (previousSlide.getSlideAnalysis() != null) {
       SlideAnalysis prevAnalysis = previousSlide.getSlideAnalysis();
       previousSlideContext.put("generalMessage", prevAnalysis.getGeneralMessage());
-      previousSlideContext.put("visualConcepts", prevAnalysis.getVisualConcepts());
+      if (includeVisualConcepts) {
+        previousSlideContext.put("visualConcepts", prevAnalysis.getVisualConcepts());
+      }
       previousSlideContext.put("keyPoints", prevAnalysis.getKeyPoints());
       previousSlideContext.put("emphasisLevel", prevAnalysis.getEmphasisLevel());
     }
@@ -160,7 +168,9 @@ public class NarrativeContextService {
     if (nextSlide.getSlideAnalysis() != null) {
       SlideAnalysis nextAnalysis = nextSlide.getSlideAnalysis();
       nextSlideContext.put("generalMessage", nextAnalysis.getGeneralMessage());
-      nextSlideContext.put("visualConcepts", nextAnalysis.getVisualConcepts());
+      if (includeVisualConcepts) {
+        nextSlideContext.put("visualConcepts", nextAnalysis.getVisualConcepts());
+      }
       nextSlideContext.put("keyPoints", nextAnalysis.getKeyPoints());
       nextSlideContext.put("emphasisLevel", nextAnalysis.getEmphasisLevel());
     }
