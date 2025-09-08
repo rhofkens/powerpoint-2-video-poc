@@ -65,6 +65,8 @@ export interface PreflightSummary {
   slidesMissingVideo: number;
   /** Number of slides missing rendered images */
   slidesMissingImages: number;
+  /** Number of slides missing enhanced narratives (optional warning) */
+  slidesMissingEnhancedNarrative: number;
   /** Number of slides with assets not published to R2 */
   slidesWithUnpublishedAssets: number;
   /** Whether all mandatory checks have passed */

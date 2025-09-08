@@ -49,7 +49,7 @@ export function PreflightCheckModal({
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [checkOptions, setCheckOptions] = useState<PreflightCheckOptions>({
-    checkEnhancedNarrative: false,
+    checkEnhancedNarrative: true,
     forceRefresh: false
   });
   const { toast } = useToast();
@@ -156,7 +156,14 @@ export function PreflightCheckModal({
     if (checkStatus === 'READY') {
       return `All ${summary.totalSlides} slides are ready for video generation`;
     } else if (checkStatus === 'HAS_WARNINGS') {
-      return `${summary.slidesReady} of ${summary.totalSlides} slides ready, but ${summary.slidesWithUnpublishedAssets} have unpublished assets`;
+      const warnings = [];
+      if (summary.slidesWithUnpublishedAssets > 0) {
+        warnings.push(`${summary.slidesWithUnpublishedAssets} have unpublished assets`);
+      }
+      if (summary.slidesMissingEnhancedNarrative > 0) {
+        warnings.push(`${summary.slidesMissingEnhancedNarrative} missing enhanced narratives (optional)`);
+      }
+      return `${summary.slidesReady} of ${summary.totalSlides} slides ready. Warnings: ${warnings.join(', ')}`;
     } else if (checkStatus === 'INCOMPLETE') {
       const issues = [];
       if (summary.slidesMissingNarrative > 0) issues.push(`${summary.slidesMissingNarrative} missing narratives`);

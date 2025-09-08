@@ -159,8 +159,8 @@ public class PreflightCheckService {
         enhancedNarrativeStatus = CheckStatus.PASSED;
         metadata.put("enhancedNarrativeLength", narrative.getEnhancedNarrativeText().length());
       } else {
-        enhancedNarrativeStatus = CheckStatus.FAILED;
-        issues.add("Missing enhanced narrative text");
+        enhancedNarrativeStatus = CheckStatus.WARNING;
+        issues.add("Enhanced narrative not generated (optional)");
       }
     }
 
@@ -296,6 +296,7 @@ public class PreflightCheckService {
     int slidesMissingAudio = 0;
     int slidesMissingVideo = 0;
     int slidesMissingImages = 0;
+    int slidesMissingEnhancedNarrative = 0;
     int slidesWithUnpublishedAssets = 0;
 
     for (SlideCheckResult result : slideResults) {
@@ -309,9 +310,15 @@ public class PreflightCheckService {
       if (result.getAvatarVideoStatus() == CheckStatus.FAILED) slidesMissingVideo++;
       if (result.getImageStatus() == CheckStatus.FAILED) slidesMissingImages++;
 
+      // Count enhanced narrative warnings separately (not failures)
+      if (result.getEnhancedNarrativeStatus() == CheckStatus.WARNING) {
+        slidesMissingEnhancedNarrative++;
+      }
+
       if (result.getAudioStatus() == CheckStatus.WARNING
           || result.getAvatarVideoStatus() == CheckStatus.WARNING
-          || result.getImageStatus() == CheckStatus.WARNING) {
+          || result.getImageStatus() == CheckStatus.WARNING
+          || result.getEnhancedNarrativeStatus() == CheckStatus.WARNING) {
         slidesWithUnpublishedAssets++;
       }
 
@@ -333,6 +340,7 @@ public class PreflightCheckService {
         .slidesMissingAudio(slidesMissingAudio)
         .slidesMissingVideo(slidesMissingVideo)
         .slidesMissingImages(slidesMissingImages)
+        .slidesMissingEnhancedNarrative(slidesMissingEnhancedNarrative)
         .slidesWithUnpublishedAssets(slidesWithUnpublishedAssets)
         .allMandatoryChecksPassed(allMandatoryChecksPassed)
         .build();
@@ -362,6 +370,7 @@ public class PreflightCheckService {
                 .slidesMissingAudio(0)
                 .slidesMissingVideo(0)
                 .slidesMissingImages(0)
+                .slidesMissingEnhancedNarrative(0)
                 .slidesWithUnpublishedAssets(0)
                 .allMandatoryChecksPassed(false)
                 .build())
@@ -382,6 +391,7 @@ public class PreflightCheckService {
                 .slidesMissingAudio(0)
                 .slidesMissingVideo(0)
                 .slidesMissingImages(0)
+                .slidesMissingEnhancedNarrative(0)
                 .slidesWithUnpublishedAssets(0)
                 .allMandatoryChecksPassed(false)
                 .build())
