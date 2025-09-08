@@ -1,6 +1,7 @@
 package ai.bluefields.ppt2video.service;
 
 import ai.bluefields.ppt2video.entity.AssetMetadata;
+import ai.bluefields.ppt2video.entity.UploadStatus;
 import ai.bluefields.ppt2video.repository.AssetMetadataRepository;
 import java.util.HashMap;
 import java.util.List;
@@ -42,9 +43,9 @@ public class R2AssetVerificationService {
       var metadata = assetMetadata.get();
 
       // Check if asset has been marked as uploaded successfully
-      if (!"UPLOADED".equals(metadata.getUploadStatus())) {
+      if (metadata.getUploadStatus() != UploadStatus.COMPLETED) {
         log.debug(
-            "Asset {} upload status is not UPLOADED: {}", assetId, metadata.getUploadStatus());
+            "Asset {} upload status is not COMPLETED: {}", assetId, metadata.getUploadStatus());
         return false;
       }
 
@@ -92,7 +93,7 @@ public class R2AssetVerificationService {
         AssetMetadata metadata = metadataMap.get(assetId);
         boolean isPublished =
             metadata != null
-                && "UPLOADED".equals(metadata.getUploadStatus())
+                && metadata.getUploadStatus() == UploadStatus.COMPLETED
                 && metadata.getR2Key() != null
                 && !metadata.getR2Key().isEmpty();
         results.put(assetId, isPublished);
