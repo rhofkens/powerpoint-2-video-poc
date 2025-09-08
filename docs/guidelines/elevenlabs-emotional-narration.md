@@ -14,11 +14,30 @@ ElevenLabs V3 voices support emotional control through two primary methods: punc
 - **Exclamation marks (!)** - Adds excitement or urgency
 - **Commas (,)** - Natural pauses and rhythm
 - **Periods (.)** - Clear sentence breaks
+- **Parentheses ()** - Softer, aside tone
+
+**⚠️ Important:** Do NOT use dashes (— or -) as they cause issues with the ElevenLabs TTS engine.
 
 ### Example
 
 "It was a VERY long day... nobody listens anymore."
-"This is AMAZING! We finally... we finally did it!"
+"This is AMAZING! We finally did it!"
+"I think... we should reconsider our approach."
+
+### Post-Processing Rules
+
+The enhancer includes automatic post-processing to ensure natural speech flow:
+
+1. **Ellipsis Placement**: Ellipses should NOT appear between:
+   - Modal verbs and main verbs (wrong: "would... do", correct: "would do")
+   - Auxiliary verbs and past participles (wrong: "have... done", correct: "have done")
+   - "To be" verbs and predicates (wrong: "is... running", correct: "is running")
+
+2. **Natural Pause Points**: Ellipses work best at:
+   - After introductory phrases
+   - Before conclusions
+   - Between independent clauses
+   - At natural breath points
 
 ## Secondary Method: Audio Tags
 

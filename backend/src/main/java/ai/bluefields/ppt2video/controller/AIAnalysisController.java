@@ -291,12 +291,14 @@ public class AIAnalysisController {
    * Enhance a slide's narrative with emotional markers for TTS.
    *
    * @param slideId The slide ID
+   * @param force Whether to force re-enhancement even if already enhanced
    * @return The enhanced narrative
    */
   @PostMapping("/ai/slides/{id}/enhance-narrative")
   public ResponseEntity<ApiResponse<SlideNarrative>> enhanceNarrative(
-      @PathVariable("id") UUID slideId) {
-    log.info("Received request to enhance narrative for slide: {}", slideId);
+      @PathVariable("id") UUID slideId,
+      @RequestParam(value = "force", defaultValue = "false") boolean force) {
+    log.info("Received request to enhance narrative for slide: {}, force: {}", slideId, force);
 
     try {
       // Get the slide
@@ -312,6 +314,15 @@ public class AIAnalysisController {
               .orElseThrow(
                   () -> new IllegalArgumentException("No narrative found for slide: " + slideId));
 
+      // If force is true, clear the existing enhancement
+      if (force && narrative.hasEnhancement()) {
+        log.info("Force flag set, clearing existing enhancement for slide: {}", slideId);
+        narrative.setEnhancedNarrativeText(null);
+        narrative.setEnhancementTimestamp(null);
+        narrative.setEnhancementModelUsed(null);
+        narrative.setEnhancementMetadata(null);
+      }
+
       // Get the ElevenLabs enhancer
       EmotionalEnhancer enhancer = emotionalEnhancerFactory.getEnhancer("elevenlabs");
 
@@ -324,7 +335,10 @@ public class AIAnalysisController {
           ApiResponse.<SlideNarrative>builder()
               .success(true)
               .data(narrative)
-              .message("Narrative enhanced with emotional markers")
+              .message(
+                  force
+                      ? "Narrative re-enhanced with emotional markers"
+                      : "Narrative enhanced with emotional markers")
               .build());
 
     } catch (IllegalArgumentException e) {

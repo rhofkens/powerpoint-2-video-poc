@@ -1,8 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SlideNarrative, EmotionIndicator, AvatarInstructions, SpeechMarkers } from "@/types/presentation";
-import { MessageCircle, Smile, Clock, RefreshCw, Volume2 } from "lucide-react";
+import { MessageCircle, Smile, Clock, RefreshCw, Volume2, Sparkles, FileText, AlertCircle } from "lucide-react";
 import { useState } from "react";
 
 interface NarrativeDisplayProps {
@@ -21,8 +23,8 @@ export function NarrativeDisplay({ narrative, slideNumber, onRegenerate }: Narra
   const emphasisWords = JSON.parse(narrative.emphasisWords || '[]') as string[];
 
   // Function to render narrative with emotion highlighting
-  const renderNarrativeWithEmotions = () => {
-    const words = narrative.narrativeText.split(' ');
+  const renderNarrativeWithEmotions = (text: string) => {
+    const words = text.split(' ');
     let currentEmotionIndex = 0;
     
     return words.map((word, index) => {
@@ -108,7 +110,7 @@ export function NarrativeDisplay({ narrative, slideNumber, onRegenerate }: Narra
           </div>
         </div>
 
-        {/* Narrative Text */}
+        {/* Narrative Text - Show tabs if enhanced version exists */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">Narrative Text</h4>
@@ -120,9 +122,52 @@ export function NarrativeDisplay({ narrative, slideNumber, onRegenerate }: Narra
               {showDetails ? 'Hide' : 'Show'} Details
             </Button>
           </div>
-          <div className="p-4 bg-muted/50 rounded-lg text-sm leading-relaxed">
-            {showDetails ? renderNarrativeWithEmotions() : narrative.narrativeText}
-          </div>
+          
+          {narrative.enhancedNarrativeText ? (
+            <Tabs defaultValue="enhanced" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="original" className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  Original
+                </TabsTrigger>
+                <TabsTrigger value="enhanced" className="gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Enhanced (ElevenLabs)
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="original" className="mt-4">
+                <div className="p-4 bg-muted/50 rounded-lg text-sm leading-relaxed">
+                  {showDetails ? renderNarrativeWithEmotions(narrative.narrativeText) : narrative.narrativeText}
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Generated with: {narrative.modelUsed}
+                </div>
+              </TabsContent>
+              <TabsContent value="enhanced" className="mt-4">
+                <div className="p-4 bg-muted/50 rounded-lg text-sm leading-relaxed">
+                  {showDetails ? renderNarrativeWithEmotions(narrative.enhancedNarrativeText) : narrative.enhancedNarrativeText}
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Enhanced with: {narrative.enhancementModelUsed}</span>
+                  {narrative.enhancementTimestamp && (
+                    <span>Enhanced: {new Date(narrative.enhancementTimestamp).toLocaleString()}</span>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <>
+              <div className="p-4 bg-muted/50 rounded-lg text-sm leading-relaxed">
+                {showDetails ? renderNarrativeWithEmotions(narrative.narrativeText) : narrative.narrativeText}
+              </div>
+              <Alert className="mt-3">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  No emotional enhancement available. Run the ElevenLabs optimizer to add emotional markers for better TTS quality.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
         </div>
 
         {/* Transition Phrase */}

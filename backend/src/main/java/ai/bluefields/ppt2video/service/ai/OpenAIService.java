@@ -77,6 +77,15 @@ public class OpenAIService {
   private String modelName;
 
   /**
+   * Get the configured model name.
+   *
+   * @return The model name from configuration
+   */
+  public String getModelName() {
+    return modelName;
+  }
+
+  /**
    * Send a chat completion request to OpenAI.
    *
    * @param systemPrompt The system prompt to set context

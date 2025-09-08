@@ -35,6 +35,19 @@ public class SlideNarrative {
   @Column(name = "narrative_text", columnDefinition = "TEXT", nullable = false)
   private String narrativeText;
 
+  @Column(name = "enhanced_narrative_text", columnDefinition = "TEXT")
+  private String enhancedNarrativeText;
+
+  @Column(name = "enhancement_metadata", columnDefinition = "JSONB")
+  @JdbcTypeCode(SqlTypes.JSON)
+  private String enhancementMetadata;
+
+  @Column(name = "enhancement_timestamp")
+  private LocalDateTime enhancementTimestamp;
+
+  @Column(name = "enhancement_model_used")
+  private String enhancementModelUsed;
+
   @Column(name = "emotion_indicators", columnDefinition = "JSONB")
   @JdbcTypeCode(SqlTypes.JSON)
   private String emotionIndicators;
@@ -83,4 +96,38 @@ public class SlideNarrative {
   @UpdateTimestamp
   @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
+
+  /**
+   * Gets the effective narrative text for audio generation. Returns the enhanced narrative if
+   * available, otherwise falls back to the original narrative text.
+   *
+   * @return The narrative text to use for TTS generation
+   */
+  @Transient
+  public String getEffectiveNarrativeForAudio() {
+    return enhancedNarrativeText != null && !enhancedNarrativeText.isEmpty()
+        ? enhancedNarrativeText
+        : narrativeText;
+  }
+
+  /**
+   * Checks if this narrative has been emotionally enhanced.
+   *
+   * @return true if enhanced narrative text exists, false otherwise
+   */
+  @Transient
+  public boolean hasEnhancement() {
+    return enhancedNarrativeText != null && !enhancedNarrativeText.isEmpty();
+  }
+
+  /**
+   * Gets the original narrative text for subtitles and translation. Always returns the original
+   * narrative without emotional enhancements.
+   *
+   * @return The original narrative text
+   */
+  @Transient
+  public String getNarrativeForSubtitles() {
+    return narrativeText;
+  }
 }

@@ -171,12 +171,18 @@ export function SlidesGrid({ presentationId, onRefresh, onGenerateFullStory, pro
       return;
     }
 
+    // Check if there's already an enhancement and force regeneration
+    const hasEnhancement = slide.slideNarrative.enhancedNarrativeText !== null && 
+                           slide.slideNarrative.enhancedNarrativeText !== undefined;
+    
     setEnhancingNarratives(prev => new Set(prev).add(slideId));
     try {
-      const enhancedNarrative = await apiService.enhanceSlideNarrative(slideId);
+      const enhancedNarrative = await apiService.enhanceSlideNarrative(slideId, hasEnhancement);
       toast({
-        title: "Narrative enhanced",
-        description: "Emotional markers have been added to the narrative"
+        title: hasEnhancement ? "Narrative re-enhanced" : "Narrative enhanced",
+        description: hasEnhancement 
+          ? "Emotional markers have been regenerated with latest improvements"
+          : "Emotional markers have been added to the narrative"
       });
       // Refresh slides to show enhanced narrative
       await fetchSlides();

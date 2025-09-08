@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SlideNarrative, EmotionIndicator, AvatarInstructions, SpeechMarkers } from "@/types/presentation";
 import { SlideSpeech } from "@/types/tts";
 import { apiService } from "@/services/api";
@@ -23,7 +24,9 @@ import {
   AlertCircle,
   CheckCircle,
   Pause,
-  Scissors
+  Scissors,
+  FileText,
+  Sparkles
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -57,6 +60,7 @@ export function SlideNarrativeWithTTS({
   const [reductionPercentage, setReductionPercentage] = useState(50);
   const [shortenedNarrative, setShortenedNarrative] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const isUnmountingRef = useRef(false);
   const { toast } = useToast();
   const { updateSlide } = usePresentationStore();
 
@@ -81,9 +85,13 @@ export function SlideNarrativeWithTTS({
   // Clean up audio element on unmount
   useEffect(() => {
     return () => {
+      isUnmountingRef.current = true;
       if (audioRef.current) {
+        // Pause and clean up the audio element
         audioRef.current.pause();
+        // Setting src to empty and nulling the reference should stop all events
         audioRef.current.src = '';
+        audioRef.current = null;
       }
     };
   }, []);
@@ -101,6 +109,17 @@ export function SlideNarrativeWithTTS({
 
   const handleGenerateSpeech = async (forceRegenerate: boolean = false) => {
     setIsGeneratingSpeech(true);
+    
+    // Clean up existing audio element before regenerating
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
+    }
+    
     try {
       const speechData = await apiService.generateSpeech(slideId, {
         presentationId,
@@ -124,9 +143,9 @@ export function SlideNarrativeWithTTS({
         console.error("Failed to fetch updated slide data:", error);
       }
       
-      // Auto-play the generated speech
+      // Auto-play the generated speech with the NEW speech data
       setTimeout(() => {
-        initializeAndPlayAudio();
+        initializeAndPlayAudioWithData(speechData);
       }, 500); // Small delay to ensure audio URL is ready
     } catch (error) {
       console.error("Failed to generate speech:", error);
@@ -140,10 +159,10 @@ export function SlideNarrativeWithTTS({
     }
   };
 
-  const initializeAndPlayAudio = () => {
-    if (!speech) return;
-    
-    const audio = new Audio(apiService.getSpeechAudioUrl(speech.id));
+  const initializeAndPlayAudioWithData = (speechData: SlideSpeech) => {
+    // Add timestamp to URL to prevent caching
+    const audioUrl = `${apiService.getSpeechAudioUrl(speechData.id)}?t=${Date.now()}`;
+    const audio = new Audio(audioUrl);
     
     audio.addEventListener('timeupdate', () => {
       setCurrentTime(audio.currentTime);
@@ -167,22 +186,40 @@ export function SlideNarrativeWithTTS({
     
     audio.addEventListener('error', (e) => {
       console.error("Audio playback error:", e);
-      toast({
-        title: "Playback Error",
-        description: "Failed to play audio",
-        variant: "destructive",
-      });
+      // Don't show toast if component is unmounting
+      if (!isUnmountingRef.current) {
+        toast({
+          title: "Playback Error",
+          description: "Failed to play audio",
+          variant: "destructive",
+        });
+      }
       setIsPlaying(false);
     });
     
     audioRef.current = audio;
   };
 
+  const initializeAndPlayAudio = () => {
+    if (!speech) return;
+    initializeAndPlayAudioWithData(speech);
+  };
+
   const handlePlayPause = () => {
     if (!speech) return;
     
-    if (!audioRef.current) {
-      const audio = new Audio(apiService.getSpeechAudioUrl(speech.id));
+    if (!audioRef.current || !audioRef.current.src) {
+      // Always recreate audio element to ensure we have fresh URL
+      // Clean up old audio if it exists
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
+      
+      // Add timestamp to URL to prevent caching
+      const audioUrl = `${apiService.getSpeechAudioUrl(speech.id)}?t=${Date.now()}`;
+      const audio = new Audio(audioUrl);
       
       audio.addEventListener('timeupdate', () => {
         setCurrentTime(audio.currentTime);
@@ -199,11 +236,14 @@ export function SlideNarrativeWithTTS({
       
       audio.addEventListener('error', (e) => {
         console.error("Audio playback error:", e);
-        toast({
-          title: "Playback Error",
-          description: "Failed to play audio",
-          variant: "destructive",
-        });
+        // Don't show toast if component is unmounting
+        if (!isUnmountingRef.current) {
+          toast({
+            title: "Playback Error",
+            description: "Failed to play audio",
+            variant: "destructive",
+          });
+        }
         setIsPlaying(false);
       });
       
@@ -480,11 +520,57 @@ export function SlideNarrativeWithTTS({
         {/* Narrative Text */}
         <div className="space-y-2">
           <h4 className="text-sm font-medium">Narrative Text</h4>
-          <ScrollArea className="h-48 w-full rounded-md border p-4">
-            <p className="text-sm whitespace-pre-wrap">
-              {narrative.narrativeText}
-            </p>
-          </ScrollArea>
+          {narrative.enhancedNarrativeText ? (
+            <Tabs defaultValue="enhanced" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="original" className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  Original
+                </TabsTrigger>
+                <TabsTrigger value="enhanced" className="gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Enhanced (ElevenLabs)
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="original" className="mt-4">
+                <ScrollArea className="h-48 w-full rounded-md border p-4">
+                  <p className="text-sm whitespace-pre-wrap">
+                    {narrative.narrativeText}
+                  </p>
+                </ScrollArea>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Generated with: {narrative.modelUsed}
+                </div>
+              </TabsContent>
+              <TabsContent value="enhanced" className="mt-4">
+                <ScrollArea className="h-48 w-full rounded-md border p-4">
+                  <p className="text-sm whitespace-pre-wrap">
+                    {narrative.enhancedNarrativeText}
+                  </p>
+                </ScrollArea>
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Enhanced with: {narrative.enhancementModelUsed}</span>
+                  {narrative.enhancementTimestamp && (
+                    <span>Enhanced: {new Date(narrative.enhancementTimestamp).toLocaleString()}</span>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <>
+              <ScrollArea className="h-48 w-full rounded-md border p-4">
+                <p className="text-sm whitespace-pre-wrap">
+                  {narrative.narrativeText}
+                </p>
+              </ScrollArea>
+              <Alert className="mt-3">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  No emotional enhancement available. Run the ElevenLabs optimizer to add emotional markers for better TTS quality.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
         </div>
 
         {/* Avatar Instructions */}

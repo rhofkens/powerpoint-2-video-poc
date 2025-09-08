@@ -341,11 +341,14 @@ class ApiService {
    * Enhances a slide's narrative with emotional markers for TTS.
    * 
    * @param slideId - The UUID of the slide
+   * @param force - Whether to force re-enhancement even if already enhanced
    * @returns Promise resolving to enhanced narrative
    */
-  async enhanceSlideNarrative(slideId: string): Promise<SlideNarrative> {
+  async enhanceSlideNarrative(slideId: string, force: boolean = false): Promise<SlideNarrative> {
     const response = await this.axiosInstance.post<{ success: boolean; data: SlideNarrative; message: string }>(
-      `/ai/slides/${slideId}/enhance-narrative`
+      `/ai/slides/${slideId}/enhance-narrative${force ? '?force=true' : ''}`,
+      {},
+      { timeout: 120000 } // 120 seconds timeout for emotional enhancement (AI can be slow)
     );
     return response.data.data;
   }

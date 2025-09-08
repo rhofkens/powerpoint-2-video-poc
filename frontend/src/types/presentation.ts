@@ -428,6 +428,14 @@ export interface SlideNarrative {
   id: string;
   /** The narrative text */
   narrativeText: string;
+  /** The emotionally enhanced narrative text (optional) */
+  enhancedNarrativeText?: string;
+  /** Metadata about the enhancement (JSON format) */
+  enhancementMetadata?: string;
+  /** When the enhancement was created */
+  enhancementTimestamp?: string;
+  /** Model used for enhancement */
+  enhancementModelUsed?: string;
   /** Emotion indicators in JSON format */
   emotionIndicators: string;
   /** Avatar instructions in JSON format */

@@ -98,6 +98,17 @@ public class TextToSpeechService {
             .findById(narrativeId)
             .orElseThrow(() -> new IllegalArgumentException("Narrative not found: " + narrativeId));
 
+    // Log whether we'll use enhanced or original narrative
+    if (narrative.hasEnhancement()) {
+      log.info(
+          "Using enhanced narrative for TTS generation (slide: {})",
+          narrative.getSlide().getSlideNumber());
+    } else {
+      log.info(
+          "Using original narrative for TTS generation - no enhancement available (slide: {})",
+          narrative.getSlide().getSlideNumber());
+    }
+
     // Check if active speech already exists for this narrative
     Optional<SlideSpeech> activeSpeechForNarrative =
         slideSpeechRepository.findActiveBySlideNarrativeId(narrativeId);
@@ -221,7 +232,8 @@ public class TextToSpeechService {
    * @return TransitionResult with the combined text and metadata
    */
   private TransitionResult prepareTextWithTransitionAndTrack(SlideNarrative narrative) {
-    String narrativeText = narrative.getNarrativeText();
+    // Use enhanced narrative for audio if available, otherwise use original
+    String narrativeText = narrative.getEffectiveNarrativeForAudio();
     String transitionPhrase = narrative.getTransitionPhrase();
 
     // If there's no transition phrase, return just the narrative
