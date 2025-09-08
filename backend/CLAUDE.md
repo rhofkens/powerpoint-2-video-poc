@@ -2,7 +2,11 @@
 
 ## Git Commit Messages
 
-When creating git commits, DO NOT include references to Claude or AI generation in the commit message. Keep commit messages professional and focused solely on the technical changes made.
+When creating git commits:
+- DO NOT include references to Claude, AI generation, or any AI assistant in the commit message
+- DO NOT include the "🤖 Generated with Claude Code" footer
+- DO NOT include "Co-Authored-By: Claude" or similar attributions
+- Keep commit messages professional and focused solely on the technical changes made
 
 ### Example:
 ```
