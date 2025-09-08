@@ -1,5 +1,6 @@
 package ai.bluefields.ppt2video.service.ai;
 
+import ai.bluefields.ppt2video.entity.AssetType;
 import ai.bluefields.ppt2video.entity.Slide;
 import ai.bluefields.ppt2video.entity.SlideNarrative;
 import ai.bluefields.ppt2video.entity.SlideSpeech;
@@ -7,6 +8,7 @@ import ai.bluefields.ppt2video.repository.SlideNarrativeRepository;
 import ai.bluefields.ppt2video.repository.SlideRepository;
 import ai.bluefields.ppt2video.repository.SlideSpeechRepository;
 import ai.bluefields.ppt2video.service.FileStorageService;
+import ai.bluefields.ppt2video.service.R2AssetService;
 import ai.bluefields.ppt2video.service.ai.narrative.TransitionRedundancyChecker;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -41,6 +43,7 @@ public class TextToSpeechService {
   private final SlideNarrativeRepository slideNarrativeRepository;
   private final SlideRepository slideRepository;
   private final TransitionRedundancyChecker redundancyChecker;
+  private final R2AssetService r2AssetService;
 
   @Value("${app.elevenlabs.api-key}")
   private String apiKey;
@@ -197,6 +200,24 @@ public class TextToSpeechService {
       slide.setAudioPath(audioPath);
       slideRepository.save(slide);
       log.info("Updated slide {} audio_path to: {}", slide.getId(), audioPath);
+
+      // Automatically upload to R2 (will replace existing if regenerated)
+      try {
+        log.info("Uploading audio to R2 for slide: {}", slide.getId());
+        r2AssetService.publishExistingAsset(
+            slide.getPresentation().getId(),
+            slide.getId(),
+            AssetType.SLIDE_AUDIO,
+            true // forceRepublish to replace existing audio
+            );
+        log.info("Successfully uploaded audio to R2 for slide: {}", slide.getId());
+      } catch (Exception e) {
+        log.error(
+            "Failed to upload audio to R2 for slide: {}, continuing without R2 upload",
+            slide.getId(),
+            e);
+        // Don't fail the whole operation if R2 upload fails
+      }
 
       log.info(
           "Successfully generated speech for narrative: {}, duration: {} seconds",
