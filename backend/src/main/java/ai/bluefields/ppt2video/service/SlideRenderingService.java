@@ -1,5 +1,6 @@
 package ai.bluefields.ppt2video.service;
 
+import ai.bluefields.ppt2video.entity.AssetType;
 import ai.bluefields.ppt2video.entity.Presentation;
 import ai.bluefields.ppt2video.entity.Slide;
 import ai.bluefields.ppt2video.repository.PresentationRepository;
@@ -32,6 +33,7 @@ public class SlideRenderingService {
   private final SlideRepository slideRepository;
   private final RenderingStrategyFactory strategyFactory;
   private final PlaceholderImageService placeholderService;
+  private final R2AssetService r2AssetService;
 
   @Value("${app.storage.presentations-path}")
   private String presentationsBasePath;
@@ -125,6 +127,24 @@ public class SlideRenderingService {
               "Successfully rendered slide {} for presentation: {}",
               slide.getSlideNumber(),
               presentationId);
+
+          // Automatically upload to R2 (will replace existing if re-rendering)
+          try {
+            log.info("Uploading slide image to R2 for slide: {}", slide.getId());
+            r2AssetService.publishExistingAsset(
+                presentationId,
+                slide.getId(),
+                AssetType.SLIDE_IMAGE,
+                true // forceRepublish to replace existing image if re-rendering
+                );
+            log.info("Successfully uploaded slide {} image to R2", slide.getSlideNumber());
+          } catch (Exception uploadEx) {
+            log.error(
+                "Failed to upload slide {} image to R2, continuing without R2 upload: {}",
+                slide.getSlideNumber(),
+                uploadEx.getMessage());
+            // Don't fail the whole rendering operation if R2 upload fails
+          }
 
         } catch (Exception e) {
           log.error(
