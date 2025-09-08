@@ -162,6 +162,7 @@ export function PreflightCheckModal({
       if (summary.slidesMissingNarrative > 0) issues.push(`${summary.slidesMissingNarrative} missing narratives`);
       if (summary.slidesMissingAudio > 0) issues.push(`${summary.slidesMissingAudio} missing audio`);
       if (summary.slidesMissingVideo > 0) issues.push(`${summary.slidesMissingVideo} missing videos`);
+      if (summary.slidesMissingImages > 0) issues.push(`${summary.slidesMissingImages} missing images`);
       return `Issues found: ${issues.join(', ')}`;
     }
     return '';
@@ -208,6 +209,7 @@ export function PreflightCheckModal({
               {getStatusIcon(slide.narrativeStatus)}
               {getStatusIcon(slide.audioStatus)}
               {getStatusIcon(slide.avatarVideoStatus)}
+              {getStatusIcon(slide.imageStatus)}
               {hasIssues && (
                 <Badge variant="destructive" className="ml-2">
                   {slide.issues.length} issue{slide.issues.length !== 1 ? 's' : ''}
@@ -234,6 +236,10 @@ export function PreflightCheckModal({
               <div className="flex items-center gap-2">
                 {getStatusIcon(slide.avatarVideoStatus)}
                 <span className="text-sm">Avatar Video: {slide.avatarVideoStatus}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {getStatusIcon(slide.imageStatus)}
+                <span className="text-sm">Slide Image: {slide.imageStatus}</span>
               </div>
             </div>
             

@@ -41,6 +41,8 @@ export interface SlideCheckResult {
   audioStatus: CheckStatus;
   /** Status of the avatar video generation */
   avatarVideoStatus: CheckStatus;
+  /** Status of the slide image rendering and R2 upload */
+  imageStatus: CheckStatus;
   /** List of specific issues found during validation */
   issues: string[];
   /** Additional metadata about the check (file paths, URLs, etc.) */
@@ -61,6 +63,8 @@ export interface PreflightSummary {
   slidesMissingAudio: number;
   /** Number of slides missing avatar video */
   slidesMissingVideo: number;
+  /** Number of slides missing rendered images */
+  slidesMissingImages: number;
   /** Number of slides with assets not published to R2 */
   slidesWithUnpublishedAssets: number;
   /** Whether all mandatory checks have passed */

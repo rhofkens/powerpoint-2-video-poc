@@ -207,6 +207,32 @@ public class PreflightCheckService {
       issues.add("Missing avatar video");
     }
 
+    // Check slide image
+    CheckStatus imageStatus = CheckStatus.FAILED;
+    if (slide.getImagePath() != null && !slide.getImagePath().isEmpty()) {
+      // Check if image is published to R2
+      AssetMetadata imageAsset = findAssetByType(assets, "SLIDE_IMAGE");
+      if (imageAsset != null) {
+        boolean isPublished = r2AssetVerificationService.verifyAssetPublished(imageAsset.getId());
+        if (isPublished) {
+          imageStatus = CheckStatus.PASSED;
+          metadata.put("imageAssetId", imageAsset.getId());
+          metadata.put("imageR2Key", imageAsset.getR2Key());
+        } else {
+          imageStatus = CheckStatus.WARNING;
+          issues.add("Slide image exists but not published to R2");
+        }
+      } else {
+        imageStatus = CheckStatus.WARNING;
+        issues.add("Slide image rendered but asset metadata missing");
+      }
+      metadata.put("imagePath", slide.getImagePath());
+      metadata.put("imageWidth", slide.getImageWidth());
+      metadata.put("imageHeight", slide.getImageHeight());
+    } else {
+      issues.add("Missing slide image");
+    }
+
     return SlideCheckResult.builder()
         .slideId(slide.getId())
         .slideNumber(slide.getSlideNumber())
@@ -215,6 +241,7 @@ public class PreflightCheckService {
         .enhancedNarrativeStatus(enhancedNarrativeStatus)
         .audioStatus(audioStatus)
         .avatarVideoStatus(avatarVideoStatus)
+        .imageStatus(imageStatus)
         .issues(issues)
         .metadata(metadata)
         .build();
@@ -268,29 +295,36 @@ public class PreflightCheckService {
     int slidesMissingNarrative = 0;
     int slidesMissingAudio = 0;
     int slidesMissingVideo = 0;
+    int slidesMissingImages = 0;
     int slidesWithUnpublishedAssets = 0;
 
     for (SlideCheckResult result : slideResults) {
       boolean hasNarrative = result.getNarrativeStatus() == CheckStatus.PASSED;
       boolean hasAudio = result.getAudioStatus() == CheckStatus.PASSED;
       boolean hasVideo = result.getAvatarVideoStatus() == CheckStatus.PASSED;
+      boolean hasImage = result.getImageStatus() == CheckStatus.PASSED;
 
       if (!hasNarrative) slidesMissingNarrative++;
       if (result.getAudioStatus() == CheckStatus.FAILED) slidesMissingAudio++;
       if (result.getAvatarVideoStatus() == CheckStatus.FAILED) slidesMissingVideo++;
+      if (result.getImageStatus() == CheckStatus.FAILED) slidesMissingImages++;
 
       if (result.getAudioStatus() == CheckStatus.WARNING
-          || result.getAvatarVideoStatus() == CheckStatus.WARNING) {
+          || result.getAvatarVideoStatus() == CheckStatus.WARNING
+          || result.getImageStatus() == CheckStatus.WARNING) {
         slidesWithUnpublishedAssets++;
       }
 
-      if (hasNarrative && hasAudio && hasVideo) {
+      if (hasNarrative && hasAudio && hasVideo && hasImage) {
         slidesReady++;
       }
     }
 
     boolean allMandatoryChecksPassed =
-        slidesMissingNarrative == 0 && slidesMissingAudio == 0 && slidesMissingVideo == 0;
+        slidesMissingNarrative == 0
+            && slidesMissingAudio == 0
+            && slidesMissingVideo == 0
+            && slidesMissingImages == 0;
 
     return PreflightSummary.builder()
         .totalSlides(totalSlides)
@@ -298,6 +332,7 @@ public class PreflightCheckService {
         .slidesMissingNarrative(slidesMissingNarrative)
         .slidesMissingAudio(slidesMissingAudio)
         .slidesMissingVideo(slidesMissingVideo)
+        .slidesMissingImages(slidesMissingImages)
         .slidesWithUnpublishedAssets(slidesWithUnpublishedAssets)
         .allMandatoryChecksPassed(allMandatoryChecksPassed)
         .build();
@@ -326,6 +361,7 @@ public class PreflightCheckService {
                 .slidesMissingNarrative(0)
                 .slidesMissingAudio(0)
                 .slidesMissingVideo(0)
+                .slidesMissingImages(0)
                 .slidesWithUnpublishedAssets(0)
                 .allMandatoryChecksPassed(false)
                 .build())
@@ -345,6 +381,7 @@ public class PreflightCheckService {
                 .slidesMissingNarrative(0)
                 .slidesMissingAudio(0)
                 .slidesMissingVideo(0)
+                .slidesMissingImages(0)
                 .slidesWithUnpublishedAssets(0)
                 .allMandatoryChecksPassed(false)
                 .build())

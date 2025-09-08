@@ -30,6 +30,9 @@ public class PreflightSummary {
   /** Number of slides missing avatar video */
   private int slidesMissingVideo;
 
+  /** Number of slides missing rendered images */
+  private int slidesMissingImages;
+
   /** Number of slides with assets not published to R2 */
   private int slidesWithUnpublishedAssets;
 

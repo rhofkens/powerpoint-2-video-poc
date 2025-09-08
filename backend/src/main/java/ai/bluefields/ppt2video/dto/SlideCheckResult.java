@@ -41,6 +41,9 @@ public class SlideCheckResult {
   /** Status of the avatar video generation */
   private CheckStatus avatarVideoStatus;
 
+  /** Status of the slide image rendering and R2 upload */
+  private CheckStatus imageStatus;
+
   /** List of specific issues found during validation */
   @Builder.Default private List<String> issues = new ArrayList<>();
 
