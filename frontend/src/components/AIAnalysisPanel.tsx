@@ -11,7 +11,7 @@ import { PreflightCheckModal } from './PreflightCheckModal';
 import { apiService } from '@/services/api';
 import { useAnalysisStore } from '@/store/analysisStore';
 import { useToast } from "@/hooks/use-toast";
-import { Brain, Loader2, RefreshCw, Sparkles, MessageCircle, AlertCircle, CheckCircle } from "lucide-react";
+import { Brain, Loader2, RefreshCw, Sparkles, MessageCircle, AlertCircle, CheckCircle, Volume2 } from "lucide-react";
 import { PreflightCheckResponse } from '@/types/preflight';
 
 interface AIAnalysisPanelProps {
@@ -24,6 +24,8 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
   const [isAnalyzingDeck, setIsAnalyzingDeck] = useState(false);
   const [preflightModalOpen, setPreflightModalOpen] = useState(false);
   const [isRunningPreflightCheck, setIsRunningPreflightCheck] = useState(false);
+  const [isGeneratingAllAudio, setIsGeneratingAllAudio] = useState(false);
+  const [audioGenerationProgress, setAudioGenerationProgress] = useState({ current: 0, total: 0 });
   const { toast } = useToast();
   
   // Get state and actions from Zustand store
@@ -213,6 +215,89 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
     }
   };
 
+  const handleGenerateAllAudio = async () => {
+    setIsGeneratingAllAudio(true);
+    setAudioGenerationProgress({ current: 0, total: 0 });
+    
+    try {
+      // Fetch all slides
+      const slides = await apiService.getSlides(presentationId);
+      const sortedSlides = slides.sort((a, b) => a.slideNumber - b.slideNumber);
+      
+      setAudioGenerationProgress({ current: 0, total: sortedSlides.length });
+      
+      let successCount = 0;
+      const failedSlides: number[] = [];
+      
+      // Process each slide sequentially
+      for (let i = 0; i < sortedSlides.length; i++) {
+        const slide = sortedSlides[i];
+        
+        // Update progress
+        setAudioGenerationProgress({ current: i + 1, total: sortedSlides.length });
+        
+        try {
+          // Generate speech for this slide - backend will check for narrative
+          await apiService.generateSpeech(slide.id, {
+            presentationId,
+            slideId: slide.id,
+            narrativeStyle: narrativeStyle || 'business',
+            forceRegenerate: false
+          });
+          
+          successCount++;
+          
+          // Small delay between slides to avoid overwhelming the API
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+        } catch (error) {
+          console.error(`Failed to generate audio for slide ${slide.slideNumber}:`, error);
+          
+          // Check if error is due to missing narrative
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const errorMessage = (error as any)?.response?.data?.message;
+          if (errorMessage?.includes('No active narrative')) {
+            console.log(`Slide ${slide.slideNumber}: No active narrative found`);
+          }
+          
+          failedSlides.push(slide.slideNumber);
+          // Continue with next slide even if one fails
+        }
+      }
+      
+      // Show completion toast
+      if (successCount === sortedSlides.length) {
+        toast({
+          title: "Audio Generation Complete",
+          description: `Successfully generated audio for all ${sortedSlides.length} slides`
+        });
+      } else if (successCount > 0) {
+        toast({
+          title: "Audio Generation Partially Complete",
+          description: `Generated audio for ${successCount} of ${sortedSlides.length} slides. Failed slides: ${failedSlides.join(', ')}`,
+          variant: "default"
+        });
+      } else {
+        toast({
+          title: "Audio Generation Failed",
+          description: "Failed to generate audio for all slides. Ensure all slides have narratives.",
+          variant: "destructive"
+        });
+      }
+      
+    } catch (error) {
+      console.error('Failed to generate audio for all slides:', error);
+      toast({
+        title: "Audio Generation Failed",
+        description: "Failed to start audio generation. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingAllAudio(false);
+      setAudioGenerationProgress({ current: 0, total: 0 });
+    }
+  };
+
   const handlePreflightCheck = () => {
     setPreflightModalOpen(true);
   };
@@ -355,6 +440,24 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                     </Button>
                     <Button
                       variant="outline"
+                      onClick={handleGenerateAllAudio}
+                      className="justify-start"
+                      disabled={isGeneratingAllAudio}
+                    >
+                      {isGeneratingAllAudio ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generating Audio...
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="h-4 w-4 mr-2" />
+                          Generate All Audio
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
                       onClick={handlePreflightCheck}
                       className="justify-start"
                       disabled={isRunningPreflightCheck}
@@ -368,6 +471,25 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                     </Button>
                   </div>
                 </div>
+                
+                {/* Show progress for audio generation */}
+                {isGeneratingAllAudio && audioGenerationProgress.total > 0 && (
+                  <div className="space-y-2 p-3 bg-muted/50 rounded-lg mt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">
+                        Audio Generation Progress
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {Math.round((audioGenerationProgress.current / audioGenerationProgress.total) * 100)}%
+                      </span>
+                    </div>
+                    <Progress value={(audioGenerationProgress.current / audioGenerationProgress.total) * 100} className="h-2" />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{audioGenerationProgress.current} of {audioGenerationProgress.total} slides completed</span>
+                      <span>Generating audio sequentially for better quality</span>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Show progress for active operations */}
                 {(() => {
