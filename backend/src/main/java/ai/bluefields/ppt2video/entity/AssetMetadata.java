@@ -87,4 +87,17 @@ public class AssetMetadata {
   @OneToMany(mappedBy = "assetMetadata", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
   @Builder.Default
   private List<PresignedUrl> presignedUrls = new ArrayList<>();
+
+  // Convenience methods for accessing foreign key IDs and R2 key
+  public UUID getSlideId() {
+    return slide != null ? slide.getId() : null;
+  }
+
+  public UUID getPresentationId() {
+    return presentation != null ? presentation.getId() : null;
+  }
+
+  public String getR2Key() {
+    return objectKey;
+  }
 }

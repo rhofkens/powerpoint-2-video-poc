@@ -24,6 +24,11 @@ import {
   TTSResponse
 } from '../types/tts';
 
+import {
+  PreflightCheckOptions,
+  PreflightCheckResponse
+} from '../types/preflight';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 /**
@@ -620,6 +625,55 @@ class ApiService {
     }
     
     return response.data.data;
+  }
+
+  /**
+   * Run a comprehensive preflight check on a presentation.
+   * Validates that all slides have required components (narrative, audio, video).
+   * 
+   * @param presentationId - The UUID of the presentation
+   * @param options - Optional check configuration
+   * @returns Detailed check results including status for each slide
+   */
+  async runPreflightCheck(
+    presentationId: string,
+    options?: PreflightCheckOptions
+  ): Promise<PreflightCheckResponse> {
+    const response = await this.axiosInstance.post<{
+      success: boolean;
+      data: PreflightCheckResponse;
+      message?: string;
+      error?: { description?: string };
+    }>(`/presentations/${presentationId}/preflight-check`, options || {});
+    
+    if (!response.data.success) {
+      throw new ApiError(response.data.error?.description || response.data.message || 'Failed to run preflight check');
+    }
+    
+    return response.data.data;
+  }
+
+  /**
+   * Get the latest preflight check status for a presentation.
+   * Returns cached results if available and still valid.
+   * 
+   * @param presentationId - The UUID of the presentation
+   * @returns The latest check results if available
+   */
+  async getPreflightStatus(presentationId: string): Promise<PreflightCheckResponse | null> {
+    const response = await this.axiosInstance.get<{
+      success: boolean;
+      data?: PreflightCheckResponse;
+      message?: string;
+      error?: { description?: string };
+    }>(`/presentations/${presentationId}/preflight-status`);
+    
+    if (!response.data.success) {
+      // No cached status available
+      return null;
+    }
+    
+    return response.data.data || null;
   }
 }
 

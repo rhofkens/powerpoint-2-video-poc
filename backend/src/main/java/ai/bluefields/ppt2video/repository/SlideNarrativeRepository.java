@@ -135,4 +135,19 @@ public interface SlideNarrativeRepository extends JpaRepository<SlideNarrative, 
           + "AND n.isActive = true "
           + "AND n.enhancedNarrativeText IS NOT NULL")
   long countEnhancedNarrativesByPresentationId(@Param("presentationId") UUID presentationId);
+
+  /**
+   * Find all active narratives for a presentation. Used for preflight checks to validate narrative
+   * presence.
+   *
+   * @param presentationId The presentation ID
+   * @return List of active narratives
+   */
+  @Query(
+      "SELECT n FROM SlideNarrative n "
+          + "JOIN n.slide s "
+          + "WHERE s.presentation.id = :presentationId "
+          + "AND n.isActive = true")
+  List<SlideNarrative> findActiveNarrativesByPresentationId(
+      @Param("presentationId") UUID presentationId);
 }

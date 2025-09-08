@@ -97,4 +97,13 @@ public class AvatarVideo {
 
   @Column(name = "created_by")
   private String createdBy;
+
+  // Convenience methods for accessing foreign key IDs
+  public UUID getSlideId() {
+    return slide != null ? slide.getId() : null;
+  }
+
+  public UUID getPresentationId() {
+    return presentation != null ? presentation.getId() : null;
+  }
 }

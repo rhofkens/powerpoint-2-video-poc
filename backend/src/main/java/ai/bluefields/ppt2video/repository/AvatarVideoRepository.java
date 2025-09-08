@@ -24,7 +24,8 @@ public interface AvatarVideoRepository extends JpaRepository<AvatarVideo, UUID> 
    * @param slideId the slide ID
    * @return list of avatar videos
    */
-  List<AvatarVideo> findBySlideId(UUID slideId);
+  @Query("SELECT av FROM AvatarVideo av WHERE av.slide.id = :slideId")
+  List<AvatarVideo> findBySlideId(@Param("slideId") UUID slideId);
 
   /**
    * Find avatar videos by presentation ID.
@@ -32,7 +33,8 @@ public interface AvatarVideoRepository extends JpaRepository<AvatarVideo, UUID> 
    * @param presentationId the presentation ID
    * @return list of avatar videos
    */
-  List<AvatarVideo> findByPresentationId(UUID presentationId);
+  @Query("SELECT av FROM AvatarVideo av WHERE av.presentation.id = :presentationId")
+  List<AvatarVideo> findByPresentationId(@Param("presentationId") UUID presentationId);
 
   /**
    * Find avatar videos by status.
@@ -57,7 +59,9 @@ public interface AvatarVideoRepository extends JpaRepository<AvatarVideo, UUID> 
    * @param status the generation status
    * @return list of avatar videos
    */
-  List<AvatarVideo> findBySlideIdAndStatus(UUID slideId, AvatarGenerationStatusType status);
+  @Query("SELECT av FROM AvatarVideo av WHERE av.slide.id = :slideId AND av.status = :status")
+  List<AvatarVideo> findBySlideIdAndStatus(
+      @Param("slideId") UUID slideId, @Param("status") AvatarGenerationStatusType status);
 
   /**
    * Find the most recent avatar video for a slide.
@@ -114,4 +118,16 @@ public interface AvatarVideoRepository extends JpaRepository<AvatarVideo, UUID> 
   default List<AvatarVideo> findBySlideIdAndStatusCompleted(UUID slideId) {
     return findBySlideIdAndStatus(slideId, AvatarGenerationStatusType.COMPLETED);
   }
+
+  /**
+   * Find all avatar videos for a presentation ordered by creation date. Used for preflight checks
+   * to get the latest video per slide.
+   *
+   * @param presentationId the presentation ID
+   * @return list of avatar videos ordered by creation date (newest first)
+   */
+  @Query(
+      "SELECT av FROM AvatarVideo av WHERE av.presentation.id = :presentationId ORDER BY av.createdAt DESC")
+  List<AvatarVideo> findByPresentationIdOrderByCreatedAtDesc(
+      @Param("presentationId") UUID presentationId);
 }

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -24,7 +25,8 @@ public interface AssetMetadataRepository extends JpaRepository<AssetMetadata, UU
    * @param presentationId the presentation ID
    * @return list of asset metadata
    */
-  List<AssetMetadata> findByPresentationId(UUID presentationId);
+  @Query("SELECT a FROM AssetMetadata a WHERE a.presentation.id = :presentationId")
+  List<AssetMetadata> findByPresentationId(@Param("presentationId") UUID presentationId);
 
   /**
    * Find all assets for a specific slide.
@@ -32,7 +34,8 @@ public interface AssetMetadataRepository extends JpaRepository<AssetMetadata, UU
    * @param slideId the slide ID
    * @return list of asset metadata
    */
-  List<AssetMetadata> findBySlideId(UUID slideId);
+  @Query("SELECT a FROM AssetMetadata a WHERE a.slide.id = :slideId")
+  List<AssetMetadata> findBySlideId(@Param("slideId") UUID slideId);
 
   /**
    * Find assets by presentation and type.
@@ -41,7 +44,10 @@ public interface AssetMetadataRepository extends JpaRepository<AssetMetadata, UU
    * @param assetType the asset type
    * @return list of asset metadata
    */
-  List<AssetMetadata> findByPresentationIdAndAssetType(UUID presentationId, AssetType assetType);
+  @Query(
+      "SELECT a FROM AssetMetadata a WHERE a.presentation.id = :presentationId AND a.assetType = :assetType")
+  List<AssetMetadata> findByPresentationIdAndAssetType(
+      @Param("presentationId") UUID presentationId, @Param("assetType") AssetType assetType);
 
   /**
    * Find assets by slide and type.
@@ -50,7 +56,9 @@ public interface AssetMetadataRepository extends JpaRepository<AssetMetadata, UU
    * @param assetType the asset type
    * @return list of asset metadata
    */
-  List<AssetMetadata> findBySlideIdAndAssetType(UUID slideId, AssetType assetType);
+  @Query("SELECT a FROM AssetMetadata a WHERE a.slide.id = :slideId AND a.assetType = :assetType")
+  List<AssetMetadata> findBySlideIdAndAssetType(
+      @Param("slideId") UUID slideId, @Param("assetType") AssetType assetType);
 
   /**
    * Find asset by bucket and object key.
@@ -76,8 +84,11 @@ public interface AssetMetadataRepository extends JpaRepository<AssetMetadata, UU
    * @param uploadStatus the upload status
    * @return list of asset metadata
    */
+  @Query(
+      "SELECT a FROM AssetMetadata a WHERE a.presentation.id = :presentationId AND a.uploadStatus = :uploadStatus")
   List<AssetMetadata> findByPresentationIdAndUploadStatus(
-      UUID presentationId, UploadStatus uploadStatus);
+      @Param("presentationId") UUID presentationId,
+      @Param("uploadStatus") UploadStatus uploadStatus);
 
   /**
    * Count assets by presentation.
@@ -85,7 +96,8 @@ public interface AssetMetadataRepository extends JpaRepository<AssetMetadata, UU
    * @param presentationId the presentation ID
    * @return asset count
    */
-  Long countByPresentationId(UUID presentationId);
+  @Query("SELECT COUNT(a) FROM AssetMetadata a WHERE a.presentation.id = :presentationId")
+  Long countByPresentationId(@Param("presentationId") UUID presentationId);
 
   /**
    * Count assets by presentation and type.
@@ -94,7 +106,10 @@ public interface AssetMetadataRepository extends JpaRepository<AssetMetadata, UU
    * @param assetType the asset type
    * @return asset count
    */
-  Long countByPresentationIdAndAssetType(UUID presentationId, AssetType assetType);
+  @Query(
+      "SELECT COUNT(a) FROM AssetMetadata a WHERE a.presentation.id = :presentationId AND a.assetType = :assetType")
+  Long countByPresentationIdAndAssetType(
+      @Param("presentationId") UUID presentationId, @Param("assetType") AssetType assetType);
 
   /**
    * Get total storage size for a presentation.
@@ -111,12 +126,25 @@ public interface AssetMetadataRepository extends JpaRepository<AssetMetadata, UU
    *
    * @param presentationId the presentation ID
    */
-  void deleteByPresentationId(UUID presentationId);
+  @Modifying
+  @Query("DELETE FROM AssetMetadata a WHERE a.presentation.id = :presentationId")
+  void deleteByPresentationId(@Param("presentationId") UUID presentationId);
 
   /**
    * Delete all assets for a slide.
    *
    * @param slideId the slide ID
    */
-  void deleteBySlideId(UUID slideId);
+  @Modifying
+  @Query("DELETE FROM AssetMetadata a WHERE a.slide.id = :slideId")
+  void deleteBySlideId(@Param("slideId") UUID slideId);
+
+  /**
+   * Find assets for multiple slides. Used for batch operations like preflight checks.
+   *
+   * @param slideIds the list of slide IDs
+   * @return list of asset metadata
+   */
+  @Query("SELECT a FROM AssetMetadata a WHERE a.slide.id IN :slideIds")
+  List<AssetMetadata> findBySlideIdIn(@Param("slideIds") List<UUID> slideIds);
 }

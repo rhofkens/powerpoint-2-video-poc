@@ -7,10 +7,12 @@ import { Progress } from "@/components/ui/progress";
 import { DeckAnalysisDisplay } from './DeckAnalysisDisplay';
 import { NarrativeStyleSelector, type NarrativeStyle } from './NarrativeStyleSelector';
 import { CompleteNarrativeTab } from './CompleteNarrativeTab';
+import { PreflightCheckModal } from './PreflightCheckModal';
 import { apiService } from '@/services/api';
 import { useAnalysisStore } from '@/store/analysisStore';
 import { useToast } from "@/hooks/use-toast";
-import { Brain, Loader2, RefreshCw, Sparkles, MessageCircle, AlertCircle } from "lucide-react";
+import { Brain, Loader2, RefreshCw, Sparkles, MessageCircle, AlertCircle, CheckCircle } from "lucide-react";
+import { PreflightCheckResponse } from '@/types/preflight';
 
 interface AIAnalysisPanelProps {
   presentationId: string;
@@ -20,6 +22,8 @@ interface AIAnalysisPanelProps {
 
 export function AIAnalysisPanel({ presentationId, processingStatus, presentationTitle }: AIAnalysisPanelProps) {
   const [isAnalyzingDeck, setIsAnalyzingDeck] = useState(false);
+  const [preflightModalOpen, setPreflightModalOpen] = useState(false);
+  const [isRunningPreflightCheck, setIsRunningPreflightCheck] = useState(false);
   const { toast } = useToast();
   
   // Get state and actions from Zustand store
@@ -209,6 +213,15 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
     }
   };
 
+  const handlePreflightCheck = () => {
+    setPreflightModalOpen(true);
+  };
+
+  const handlePreflightComplete = (result: PreflightCheckResponse) => {
+    console.log('[AIAnalysisPanel] Preflight check completed:', result);
+    // You can add additional logic here if needed when the check completes
+  };
+
   if (!canRunAnalysis) {
     return (
       <Card>
@@ -339,6 +352,19 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                         <MessageCircle className="h-4 w-4 mr-2" />
                       )}
                       Generate All Narratives
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handlePreflightCheck}
+                      className="justify-start"
+                      disabled={isRunningPreflightCheck}
+                    >
+                      {isRunningPreflightCheck ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                      )}
+                      Pre-flight Check
                     </Button>
                   </div>
                 </div>
@@ -518,6 +544,14 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
           />
         </TabsContent>
       </Tabs>
+      
+      {/* Preflight Check Modal */}
+      <PreflightCheckModal
+        open={preflightModalOpen}
+        onOpenChange={setPreflightModalOpen}
+        presentationId={presentationId}
+        onComplete={handlePreflightComplete}
+      />
     </div>
   );
 }

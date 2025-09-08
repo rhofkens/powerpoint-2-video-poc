@@ -87,4 +87,13 @@ public class SlideSpeech {
   @UpdateTimestamp
   @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
+
+  // Convenience methods for accessing foreign key IDs
+  public UUID getSlideId() {
+    return slide != null ? slide.getId() : null;
+  }
+
+  public UUID getPresentationId() {
+    return presentation != null ? presentation.getId() : null;
+  }
 }
