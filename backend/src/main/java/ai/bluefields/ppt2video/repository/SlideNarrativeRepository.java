@@ -88,4 +88,51 @@ public interface SlideNarrativeRepository extends JpaRepository<SlideNarrative, 
           + "AND n.isActive = true")
   Optional<SlideNarrative> findByPresentationIdAndSlideNumber(
       @Param("presentationId") UUID presentationId, @Param("slideNumber") int slideNumber);
+
+  /**
+   * Find all enhanced narratives for a presentation. Returns narratives where
+   * enhanced_narrative_text is not null.
+   *
+   * @param presentationId The presentation ID
+   * @return List of enhanced narratives
+   */
+  @Query(
+      "SELECT n FROM SlideNarrative n "
+          + "JOIN n.slide s "
+          + "WHERE s.presentation.id = :presentationId "
+          + "AND n.isActive = true "
+          + "AND n.enhancedNarrativeText IS NOT NULL "
+          + "ORDER BY s.slideNumber")
+  List<SlideNarrative> findEnhancedNarrativesByPresentationId(
+      @Param("presentationId") UUID presentationId);
+
+  /**
+   * Find all narratives that have not been enhanced yet for a presentation.
+   *
+   * @param presentationId The presentation ID
+   * @return List of unenhanced narratives
+   */
+  @Query(
+      "SELECT n FROM SlideNarrative n "
+          + "JOIN n.slide s "
+          + "WHERE s.presentation.id = :presentationId "
+          + "AND n.isActive = true "
+          + "AND n.enhancedNarrativeText IS NULL "
+          + "ORDER BY s.slideNumber")
+  List<SlideNarrative> findUnenhancedNarrativesByPresentationId(
+      @Param("presentationId") UUID presentationId);
+
+  /**
+   * Count enhanced narratives for a presentation.
+   *
+   * @param presentationId The presentation ID
+   * @return Count of enhanced narratives
+   */
+  @Query(
+      "SELECT COUNT(n) FROM SlideNarrative n "
+          + "JOIN n.slide s "
+          + "WHERE s.presentation.id = :presentationId "
+          + "AND n.isActive = true "
+          + "AND n.enhancedNarrativeText IS NOT NULL")
+  long countEnhancedNarrativesByPresentationId(@Param("presentationId") UUID presentationId);
 }
