@@ -137,12 +137,8 @@ public class ElevenLabsEmotionalEnhancer implements EmotionalEnhancer {
   /** Call AI to add ElevenLabs-specific emotional markers to the narrative. */
   private String callAIForEmotionalEnhancement(SlideNarrative narrative, UUID presentationId) {
     // Parse the structured emotion data from the narrative
-    String emotionIndicators =
-        narrative.getEmotionIndicators() != null ? narrative.getEmotionIndicators() : "[]";
     String emphasisWords =
         narrative.getEmphasisWords() != null ? narrative.getEmphasisWords() : "[]";
-    String speechMarkers =
-        narrative.getSpeechMarkers() != null ? narrative.getSpeechMarkers() : "{}";
     String avatarInstructions =
         narrative.getAvatarInstructions() != null ? narrative.getAvatarInstructions() : "{}";
 
@@ -166,12 +162,15 @@ public class ElevenLabsEmotionalEnhancer implements EmotionalEnhancer {
         1. Use CAPS sparingly, only for KEY emphasis words (1-3 per paragraph)
         2. Add ellipses for dramatic effect or thoughtful pauses
         3. NEVER place ellipses between auxiliary/modal verbs and main verbs
-        4. Use exclamation marks when genuine excitement is warranted
-        5. Maintain readability, don't overuse any technique
-        6. Match the emotional context provided
-        7. Keep the original meaning intact
-        8. Make it sound natural when spoken aloud
-        9. Place ellipses at natural pause points: after introductory phrases, before conclusions, between independent clauses
+        4. NEVER place ellipses between articles (the, a, an) and the words they modify
+        5. NEVER place ellipses between adjectives and their nouns
+        6. Keep article-adjective-noun phrases together as a unit
+        7. Use exclamation marks when genuine excitement is warranted
+        8. Maintain readability, don't overuse any technique
+        9. Match the emotional context provided
+        10. Keep the original meaning intact
+        11. Make it sound natural when spoken aloud
+        12. Place ellipses at natural pause points: after introductory phrases, before conclusions, between independent clauses
 
         Examples:
         Original: "This is very important for our success."
@@ -185,7 +184,9 @@ public class ElevenLabsEmotionalEnhancer implements EmotionalEnhancer {
 
         AVOID these problematic patterns:
         Wrong: "I would... do this" or "We have... completed it"
+        Wrong: "The... beautiful garden" or "The beautiful... garden" or "A... new beginning"
         Correct: "I... would do this" or "We have completed it..." or "I would do this"
+        Correct: "...The beautiful garden" or "The beautiful garden..." or "We discovered... the beautiful garden"
         """;
 
     String userPrompt =
@@ -193,13 +194,7 @@ public class ElevenLabsEmotionalEnhancer implements EmotionalEnhancer {
             """
         Enhance this narrative with ElevenLabs emotional markers based on the provided emotional guidance.
 
-        EMOTION TIMELINE (word ranges and their emotions):
-        %s
-
         EMPHASIS WORDS (words that should be emphasized):
-        %s
-
-        SPEECH PAUSES (where pauses should occur):
         %s
 
         AVATAR EMOTION CONTEXT:
@@ -211,21 +206,20 @@ public class ElevenLabsEmotionalEnhancer implements EmotionalEnhancer {
         %s
 
         INSTRUCTIONS:
-        1. Follow the emotion timeline - adjust your enhancement style based on the emotion for each word range
-        2. Apply CAPITALIZATION to the emphasis words listed above
-        3. Add ellipses (...) at the pause locations indicated in the speech markers
-        4. For "enthusiastic" sections: use exclamation marks and energetic tone
-        5. For "confident" sections: use strong, declarative punctuation
-        6. For "friendly" sections: use warm, conversational tone
-        7. For "neutral" sections: use standard punctuation
+        1. Apply CAPITALIZATION to the emphasis words listed above
+        2. Add ellipses (...) for natural pauses and dramatic effect where appropriate
+        3. Use punctuation that matches the emotional context
+        4. For "enthusiastic" emotions: use exclamation marks and energetic tone
+        5. For "confident" emotions: use strong, declarative punctuation
+        6. For "friendly" emotions: use warm, conversational tone
+        7. For "neutral" emotions: use standard punctuation
         8. Preserve the exact wording - only modify punctuation and capitalization
+        9. Remember: never place ellipses within article-adjective-noun phrases
 
         Return ONLY the enhanced text with appropriate punctuation and capitalization.
         Do not include any explanation or metadata.
         """,
-            emotionIndicators,
             emphasisWords,
-            speechMarkers,
             avatarInstructions,
             narrative.getSlide().getSlideNumber() == 1 ? "Introduction" : "Content",
             narrative.getNarrativeText());
@@ -236,7 +230,8 @@ public class ElevenLabsEmotionalEnhancer implements EmotionalEnhancer {
 
   /**
    * Post-process the enhanced text to fix unnatural ellipsis placement. Specifically addresses
-   * ellipses placed between auxiliary/modal verbs and main verbs.
+   * ellipses placed between auxiliary/modal verbs and main verbs, and between articles/adjectives
+   * and nouns.
    */
   private String postProcessEllipses(String text) {
     if (text == null || text.isEmpty()) {
@@ -245,6 +240,17 @@ public class ElevenLabsEmotionalEnhancer implements EmotionalEnhancer {
 
     log.debug("Post-processing ellipses in enhanced text");
     String original = text;
+
+    // Pattern 0: Articles with ellipses before any word
+    // Matches: "the... beautiful", "a... new", "an... important"
+    text = text.replaceAll("\\b(the|a|an)\\.\\.\\.\\s+(\\w+)", "$1 $2");
+
+    // Pattern 0a: Common adjectives with ellipses before nouns
+    // This covers the most common adjective patterns
+    text =
+        text.replaceAll(
+            "\\b(new|old|good|bad|big|small|large|great|little|high|low|young|long|short|beautiful|important|different|public|private|international|national|local|social|economic|political|financial|digital|modern|traditional|human|natural|personal|professional|technical|medical|educational|cultural|historical|scientific|industrial|commercial|residential)\\.\\.\\. (\\w+)",
+            "$1 $2");
 
     // Pattern 1: Modal verbs (would, could, should, might, may, must, will, shall, can)
     // Matches: "I would... do" and moves to "I... would do" or "I would do"
