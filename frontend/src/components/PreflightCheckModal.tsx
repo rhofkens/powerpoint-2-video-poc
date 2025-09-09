@@ -14,6 +14,7 @@ import {
   PreflightStatus,
   CheckStatus,
   SlideCheckResult,
+  PresentationCheckResult,
   getStatusColor,
   PreflightCheckOptions
 } from '@/types/preflight';
@@ -27,7 +28,9 @@ import {
   AlertCircle,
   Download,
   RefreshCw,
-  ChevronRight
+  ChevronRight,
+  Video,
+  Sparkles
 } from 'lucide-react';
 
 interface PreflightCheckModalProps {
@@ -50,7 +53,8 @@ export function PreflightCheckModal({
   const [isRunning, setIsRunning] = useState(false);
   const [checkOptions, setCheckOptions] = useState<PreflightCheckOptions>({
     checkEnhancedNarrative: true,
-    forceRefresh: false
+    forceRefresh: false,
+    checkIntroVideo: true
   });
   const { toast } = useToast();
 
@@ -141,8 +145,10 @@ export function PreflightCheckModal({
       case 'HAS_WARNINGS':
         return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
       case 'NOT_APPLICABLE':
+      case 'NOT_FOUND':
         return <Minus className="h-4 w-4 text-gray-400" />;
       case 'CHECKING':
+      case 'IN_PROGRESS':
         return <Loader2 className="h-4 w-4 animate-spin text-blue-600" />;
       default:
         return null;
@@ -152,9 +158,13 @@ export function PreflightCheckModal({
   const getOverallStatusMessage = () => {
     if (!checkResponse) return '';
     
-    const { summary } = checkResponse;
+    const { summary, presentationCheckResult } = checkResponse;
     if (checkStatus === 'READY') {
-      return `All ${summary.totalSlides} slides are ready for video generation`;
+      let message = `All ${summary.totalSlides} slides are ready for video generation`;
+      if (summary.hasIntroVideo) {
+        message += '. Intro video ready';
+      }
+      return message;
     } else if (checkStatus === 'HAS_WARNINGS') {
       const warnings = [];
       if (summary.slidesWithUnpublishedAssets > 0) {
@@ -163,6 +173,12 @@ export function PreflightCheckModal({
       if (summary.slidesMissingEnhancedNarrative > 0) {
         warnings.push(`${summary.slidesMissingEnhancedNarrative} missing enhanced narratives (optional)`);
       }
+      if (presentationCheckResult?.introVideoStatus === 'WARNING') {
+        warnings.push('intro video not published');
+      }
+      if (presentationCheckResult?.introVideoStatus === 'IN_PROGRESS') {
+        warnings.push('intro video generating');
+      }
       return `${summary.slidesReady} of ${summary.totalSlides} slides ready. Warnings: ${warnings.join(', ')}`;
     } else if (checkStatus === 'INCOMPLETE') {
       const issues = [];
@@ -170,6 +186,9 @@ export function PreflightCheckModal({
       if (summary.slidesMissingAudio > 0) issues.push(`${summary.slidesMissingAudio} missing audio`);
       if (summary.slidesMissingVideo > 0) issues.push(`${summary.slidesMissingVideo} missing videos`);
       if (summary.slidesMissingImages > 0) issues.push(`${summary.slidesMissingImages} missing images`);
+      if (presentationCheckResult?.introVideoStatus === 'FAILED') {
+        issues.push('intro video generation failed');
+      }
       return `Issues found: ${issues.join(', ')}`;
     }
     return '';
@@ -197,6 +216,25 @@ export function PreflightCheckModal({
       title: 'Results Exported',
       description: 'Preflight check results have been downloaded',
     });
+  };
+
+  const getIntroVideoStatusMessage = (result: PresentationCheckResult) => {
+    switch (result.introVideoStatus) {
+      case 'PASSED':
+        return `Ready (${result.durationSeconds?.toFixed(1) || '8.0'}s video)`;
+      case 'IN_PROGRESS':
+        return 'Generation in progress...';
+      case 'WARNING':
+        return 'Generated but not published';
+      case 'FAILED':
+        return 'Generation failed';
+      case 'NOT_FOUND':
+        return 'Not generated (optional)';
+      case 'NOT_APPLICABLE':
+        return 'Check disabled';
+      default:
+        return 'Unknown status';
+    }
   };
 
   const renderSlideResult = (slide: SlideCheckResult) => {
@@ -283,7 +321,7 @@ export function PreflightCheckModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileCheck className="h-5 w-5" />
@@ -367,6 +405,49 @@ export function PreflightCheckModal({
                 </CardContent>
               </Card>
 
+              {/* Intro Video Status (if checked) */}
+              {checkResponse.presentationCheckResult && (
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Sparkles className="h-5 w-5 text-purple-600" />
+                        <div>
+                          <p className="font-medium">Intro Video</p>
+                          <p className="text-sm text-muted-foreground">
+                            {getIntroVideoStatusMessage(checkResponse.presentationCheckResult)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(checkResponse.presentationCheckResult.introVideoStatus)}
+                        {checkResponse.presentationCheckResult.introVideoUrl && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(checkResponse.presentationCheckResult?.introVideoUrl, '_blank')}
+                          >
+                            <Video className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {checkResponse.presentationCheckResult.issues.length > 0 && (
+                      <Alert variant="default" className="mt-3">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          <ul className="list-disc list-inside space-y-1">
+                            {checkResponse.presentationCheckResult.issues.map((issue, idx) => (
+                              <li key={idx} className="text-sm">{issue}</li>
+                            ))}
+                          </ul>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Summary Stats */}
               <div className="grid grid-cols-4 gap-3">
                 <Card>
@@ -401,7 +482,7 @@ export function PreflightCheckModal({
               <Card className="overflow-hidden">
                 <CardContent className="pt-4">
                   <h3 className="font-medium mb-3">Slide Details</h3>
-                  <ScrollArea className="h-[300px] pr-4">
+                  <ScrollArea className="h-[320px] pr-4">
                     <Accordion type="single" collapsible className="w-full">
                       {checkResponse.slideResults.map(renderSlideResult)}
                     </Accordion>

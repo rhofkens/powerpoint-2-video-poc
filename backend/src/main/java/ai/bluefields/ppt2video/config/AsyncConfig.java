@@ -6,15 +6,19 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.task.support.TaskExecutorAdapter;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 /**
  * Configuration for asynchronous processing in the application. Provides both traditional thread
- * pool and virtual thread executors.
+ * pool and virtual thread executors, as well as task scheduling capabilities.
  */
 @Configuration
 @EnableAsync
+@EnableScheduling
 public class AsyncConfig {
 
   /**
@@ -46,5 +50,22 @@ public class AsyncConfig {
     // Creates a new virtual thread for each task
     // No need to configure pool sizes - virtual threads scale automatically
     return new TaskExecutorAdapter(Executors.newVirtualThreadPerTaskExecutor());
+  }
+
+  /**
+   * Configures a task scheduler for scheduled tasks. Used for polling operations like monitoring
+   * intro video generation status.
+   *
+   * @return configured task scheduler
+   */
+  @Bean
+  public TaskScheduler taskScheduler() {
+    ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+    scheduler.setPoolSize(5);
+    scheduler.setThreadNamePrefix("scheduled-");
+    scheduler.setWaitForTasksToCompleteOnShutdown(true);
+    scheduler.setAwaitTerminationSeconds(30);
+    scheduler.initialize();
+    return scheduler;
   }
 }

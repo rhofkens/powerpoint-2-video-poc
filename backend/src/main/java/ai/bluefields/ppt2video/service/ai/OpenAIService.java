@@ -39,17 +39,22 @@ public class OpenAIService {
   @Qualifier("textChatModel")
   private final ChatModel textChatModel; // GPT-5 for text generation
 
+  @Qualifier("veoPromptChatModel")
+  private final ChatModel veoPromptChatModel; // GPT-5-mini for Veo prompt generation
+
   private final RetryTemplate retryTemplate;
   private final FileStorageService fileStorageService;
   private final ObjectMapper objectMapper;
   private ChatClient visionChatClient;
   private ChatClient textChatClient;
+  private ChatClient veoPromptChatClient;
 
   @PostConstruct
   public void init() {
     this.visionChatClient = ChatClient.create(visionChatModel);
     this.textChatClient = ChatClient.create(textChatModel);
-    log.info("OpenAIService initialized with separate vision and text models");
+    this.veoPromptChatClient = ChatClient.create(veoPromptChatModel);
+    log.info("OpenAIService initialized with vision, text, and veo prompt models");
   }
 
   @Value("${app.ai.analysis.timeout-seconds:60}")
@@ -304,6 +309,83 @@ public class OpenAIService {
       long duration = System.currentTimeMillis() - startTime;
       log.error("Failed to generate vision completion after {} ms", duration, e);
       throw new RuntimeException("Failed to generate vision completion: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Generate structured JSON output from OpenAI using Veo prompt model.
+   *
+   * @param systemPrompt The system prompt to set context
+   * @param userPrompt The user prompt with the actual request
+   * @param responseFormat The expected JSON structure format
+   * @param serviceName The name of the service calling this method
+   * @param presentationId The presentation ID for organizing logs
+   * @return The AI response as a string (JSON format)
+   */
+  public String generateVeoPromptCompletion(
+      String systemPrompt,
+      String userPrompt,
+      String responseFormat,
+      String serviceName,
+      UUID presentationId) {
+    long startTime = System.currentTimeMillis();
+    log.info(
+        "[VEO PROMPT MODEL REQUEST] Service: {}, PresentationId: {}",
+        serviceName != null ? serviceName : "unknown",
+        presentationId);
+
+    String enhancedSystemPrompt =
+        systemPrompt
+            + "\n\nYou must respond with ONLY valid JSON that matches this format. "
+            + "Do not include any markdown formatting, code blocks, or explanations:\n"
+            + responseFormat;
+
+    try {
+      return retryTemplate.execute(
+          context -> {
+            if (context.getRetryCount() > 0) {
+              log.debug("Retry attempt {} for Veo prompt completion", context.getRetryCount());
+            }
+
+            log.info("[VEO PROMPT MODEL - GPT-5-mini] Processing request");
+
+            ChatResponse response =
+                veoPromptChatClient
+                    .prompt()
+                    .system(enhancedSystemPrompt)
+                    .user(userPrompt)
+                    .call()
+                    .chatResponse();
+
+            String result = response.getResult().getOutput().getText();
+            long duration = System.currentTimeMillis() - startTime;
+
+            log.info(
+                "[VEO PROMPT MODEL] Completion successful - Response length: {} chars, Duration: {} ms",
+                result.length(),
+                duration);
+
+            // Clean up the response to handle common issues
+            String cleanedResponse = cleanJsonResponse(result);
+
+            // Save prompts and response if logging is enabled
+            if (shouldSavePrompts(serviceName)) {
+              savePromptAndResponse(
+                  serviceName,
+                  presentationId,
+                  "veo-prompt",
+                  enhancedSystemPrompt,
+                  userPrompt,
+                  null,
+                  cleanedResponse);
+            }
+
+            return cleanedResponse;
+          });
+    } catch (Exception e) {
+      long duration = System.currentTimeMillis() - startTime;
+      log.error("Failed to generate Veo prompt completion after {} ms", duration, e);
+      throw new RuntimeException("Failed to generate Veo prompt completion: " + e.getMessage(), e);
     }
   }
 

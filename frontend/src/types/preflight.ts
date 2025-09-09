@@ -11,12 +11,14 @@ export interface PreflightCheckOptions {
   checkEnhancedNarrative?: boolean;
   /** Force a fresh check even if cached results are available */
   forceRefresh?: boolean;
+  /** Whether to check for intro video generation status at the presentation level */
+  checkIntroVideo?: boolean;
 }
 
 /**
  * Status of an individual check within a slide validation
  */
-export type CheckStatus = 'PASSED' | 'FAILED' | 'WARNING' | 'NOT_APPLICABLE' | 'CHECKING';
+export type CheckStatus = 'PASSED' | 'FAILED' | 'WARNING' | 'NOT_APPLICABLE' | 'CHECKING' | 'IN_PROGRESS' | 'NOT_FOUND';
 
 /**
  * Overall status of a presentation's preflight check
@@ -71,6 +73,38 @@ export interface PreflightSummary {
   slidesWithUnpublishedAssets: number;
   /** Whether all mandatory checks have passed */
   allMandatoryChecksPassed: boolean;
+  /** Whether the presentation has an intro video */
+  hasIntroVideo?: boolean;
+  /** Status of the intro video (if exists) */
+  introVideoStatus?: CheckStatus;
+  /** Intro video generation status if in progress */
+  introVideoGenerationStatus?: string;
+  /** URL of the published intro video if available */
+  introVideoUrl?: string;
+}
+
+/**
+ * Result of presentation-level checks
+ */
+export interface PresentationCheckResult {
+  /** Status of the intro video check */
+  introVideoStatus: CheckStatus;
+  /** ID of the intro video if it exists */
+  introVideoId?: string;
+  /** Published URL of the intro video if available */
+  introVideoUrl?: string;
+  /** Current generation status of the intro video */
+  generationStatus?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  /** When the intro video was created */
+  createdAt?: string;
+  /** When the intro video generation completed */
+  completedAt?: string;
+  /** Duration of the intro video in seconds */
+  durationSeconds?: number;
+  /** List of issues found during presentation-level checks */
+  issues: string[];
+  /** Additional metadata about the presentation checks */
+  metadata: Record<string, unknown>;
 }
 
 /**
@@ -85,6 +119,8 @@ export interface PreflightCheckResponse {
   slideResults: SlideCheckResult[];
   /** Summary statistics of the check results */
   summary: PreflightSummary;
+  /** Presentation-level check results */
+  presentationCheckResult?: PresentationCheckResult;
   /** Timestamp when the check was performed */
   checkedAt: string;
 }
@@ -105,8 +141,10 @@ export function getStatusColor(status: CheckStatus | PreflightStatus): string {
     case 'HAS_WARNINGS':
       return 'text-yellow-600';
     case 'NOT_APPLICABLE':
+    case 'NOT_FOUND':
       return 'text-gray-400';
     case 'CHECKING':
+    case 'IN_PROGRESS':
       return 'text-blue-600';
     default:
       return 'text-gray-600';
@@ -129,8 +167,10 @@ export function getStatusIcon(status: CheckStatus | PreflightStatus): string {
     case 'HAS_WARNINGS':
       return 'AlertTriangle';
     case 'NOT_APPLICABLE':
+    case 'NOT_FOUND':
       return 'Minus';
     case 'CHECKING':
+    case 'IN_PROGRESS':
       return 'Loader2';
     default:
       return 'Circle';

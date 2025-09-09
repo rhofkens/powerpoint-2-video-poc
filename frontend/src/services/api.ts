@@ -29,6 +29,13 @@ import {
   PreflightCheckResponse
 } from '../types/preflight';
 
+import {
+  IntroVideo,
+  IntroVideoRequest,
+  IntroVideoResponse,
+  ColorPalette
+} from '../types/intro-video';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 /**
@@ -674,6 +681,109 @@ class ApiService {
     }
     
     return response.data.data || null;
+  }
+
+  // ============= Intro Video API methods =============
+
+  /**
+   * Generate an intro video for a presentation.
+   * 
+   * @param request - The intro video generation request
+   * @returns The intro video generation response
+   */
+  async generateIntroVideo(request: IntroVideoRequest): Promise<IntroVideoResponse> {
+    const response = await this.axiosInstance.post<{
+      success: boolean;
+      data: IntroVideoResponse;
+      message?: string;
+      error?: { description?: string };
+    }>('/intro-videos/generate', request);
+    
+    if (!response.data.success) {
+      throw new ApiError(response.data.error?.description || response.data.message || 'Failed to generate intro video');
+    }
+    
+    return response.data.data;
+  }
+
+  /**
+   * Get the status of an intro video generation.
+   * 
+   * @param introVideoId - The UUID of the intro video
+   * @returns The intro video status
+   */
+  async getIntroVideoStatus(introVideoId: string): Promise<IntroVideoResponse> {
+    const response = await this.axiosInstance.get<{
+      success: boolean;
+      data: IntroVideoResponse;
+      message?: string;
+      error?: { description?: string };
+    }>(`/intro-videos/${introVideoId}/status`);
+    
+    if (!response.data.success) {
+      throw new ApiError(response.data.error?.description || response.data.message || 'Failed to get intro video status');
+    }
+    
+    return response.data.data;
+  }
+
+  /**
+   * Get the latest intro video for a presentation.
+   * 
+   * @param presentationId - The UUID of the presentation
+   * @returns The intro video if exists
+   */
+  async getIntroVideo(presentationId: string): Promise<IntroVideo | null> {
+    const response = await this.axiosInstance.get<{
+      success: boolean;
+      data: IntroVideo;
+      message?: string;
+      error?: { description?: string };
+    }>(`/intro-videos/presentation/${presentationId}`);
+    
+    if (!response.data.success) {
+      return null;
+    }
+    
+    return response.data.data;
+  }
+
+  /**
+   * Cancel an intro video generation.
+   * 
+   * @param introVideoId - The UUID of the intro video
+   */
+  async cancelIntroVideoGeneration(introVideoId: string): Promise<void> {
+    const response = await this.axiosInstance.post<{
+      success: boolean;
+      message?: string;
+      error?: { description?: string };
+    }>(`/intro-videos/${introVideoId}/cancel`);
+    
+    if (!response.data.success) {
+      throw new ApiError(response.data.error?.description || response.data.message || 'Failed to cancel intro video generation');
+    }
+  }
+
+  /**
+   * Extract dominant colors from the first slide of a presentation.
+   * 
+   * @param presentationId - The UUID of the presentation
+   * @returns The extracted color palette
+   */
+  async extractSlideColors(presentationId: string): Promise<ColorPalette> {
+    const response = await this.axiosInstance.get<{
+      success: boolean;
+      data: ColorPalette;
+      message?: string;
+      error?: { description?: string };
+    }>(`/intro-videos/presentation/${presentationId}/colors`);
+    
+    if (!response.data.success) {
+      throw new ApiError(response.data.error?.description || response.data.message || 'Failed to extract colors');
+    }
+    
+    return response.data.data;
   }
 }
 

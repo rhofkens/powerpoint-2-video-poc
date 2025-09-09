@@ -15,5 +15,11 @@ public enum CheckStatus {
   NOT_APPLICABLE,
 
   /** The check is currently in progress */
-  CHECKING
+  CHECKING,
+
+  /** The resource is currently being generated/processed */
+  IN_PROGRESS,
+
+  /** The required resource was not found */
+  NOT_FOUND
 }

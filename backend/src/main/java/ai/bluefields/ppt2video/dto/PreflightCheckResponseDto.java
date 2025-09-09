@@ -30,6 +30,9 @@ public class PreflightCheckResponseDto {
   /** Summary statistics of the check results */
   private PreflightSummary summary;
 
+  /** Presentation-level check results */
+  private PresentationCheckResult presentationCheckResult;
+
   /** Timestamp when the check was performed */
   private Instant checkedAt;
 }

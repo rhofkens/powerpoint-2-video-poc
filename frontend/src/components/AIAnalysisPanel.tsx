@@ -8,10 +8,11 @@ import { DeckAnalysisDisplay } from './DeckAnalysisDisplay';
 import { NarrativeStyleSelector, type NarrativeStyle } from './NarrativeStyleSelector';
 import { CompleteNarrativeTab } from './CompleteNarrativeTab';
 import { PreflightCheckModal } from './PreflightCheckModal';
+import { IntroVideoModal } from './IntroVideoModal';
 import { apiService } from '@/services/api';
 import { useAnalysisStore } from '@/store/analysisStore';
 import { useToast } from "@/hooks/use-toast";
-import { Brain, Loader2, RefreshCw, Sparkles, MessageCircle, AlertCircle, CheckCircle, Volume2 } from "lucide-react";
+import { Brain, Loader2, RefreshCw, Sparkles, MessageCircle, AlertCircle, CheckCircle, Volume2, Video } from "lucide-react";
 import { PreflightCheckResponse } from '@/types/preflight';
 
 interface AIAnalysisPanelProps {
@@ -23,6 +24,7 @@ interface AIAnalysisPanelProps {
 export function AIAnalysisPanel({ presentationId, processingStatus, presentationTitle }: AIAnalysisPanelProps) {
   const [isAnalyzingDeck, setIsAnalyzingDeck] = useState(false);
   const [preflightModalOpen, setPreflightModalOpen] = useState(false);
+  const [introVideoModalOpen, setIntroVideoModalOpen] = useState(false);
   const [isRunningPreflightCheck, setIsRunningPreflightCheck] = useState(false);
   const [isGeneratingAllAudio, setIsGeneratingAllAudio] = useState(false);
   const [audioGenerationProgress, setAudioGenerationProgress] = useState({ current: 0, total: 0 });
@@ -469,6 +471,15 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                       )}
                       Pre-flight Check
                     </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIntroVideoModalOpen(true)}
+                      className="justify-start"
+                      disabled={!deckAnalysis}
+                    >
+                      <Video className="h-4 w-4 mr-2" />
+                      Generate Intro Video
+                    </Button>
                   </div>
                 </div>
                 
@@ -673,6 +684,14 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
         onOpenChange={setPreflightModalOpen}
         presentationId={presentationId}
         onComplete={handlePreflightComplete}
+      />
+      
+      {/* Intro Video Modal */}
+      <IntroVideoModal
+        open={introVideoModalOpen}
+        onOpenChange={setIntroVideoModalOpen}
+        presentationId={presentationId}
+        deckAnalysis={deckAnalysis}
       />
     </div>
   );

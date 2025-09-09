@@ -4,6 +4,7 @@ import ai.bluefields.ppt2video.dto.*;
 import ai.bluefields.ppt2video.entity.*;
 import ai.bluefields.ppt2video.repository.*;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -28,6 +29,7 @@ public class PreflightCheckService {
   private final AvatarVideoRepository avatarVideoRepository;
   private final AssetMetadataRepository assetMetadataRepository;
   private final R2AssetVerificationService r2AssetVerificationService;
+  private final IntroVideoRepository introVideoRepository;
 
   // Simple in-memory cache for recent checks (could be replaced with Redis)
   private final Map<UUID, PreflightCheckResponseDto> recentChecks = new ConcurrentHashMap<>();
@@ -54,6 +56,7 @@ public class PreflightCheckService {
     }
 
     boolean checkEnhanced = request != null && request.isCheckEnhancedNarrative();
+    boolean checkIntroVideo = request != null && request.isCheckIntroVideo();
 
     try {
       // Fetch all slides for the presentation
@@ -86,11 +89,27 @@ public class PreflightCheckService {
         slideResults.add(result);
       }
 
+      // Validate presentation-level assets
+      PresentationCheckResult presentationResult =
+          validatePresentationAssets(presentationId, checkIntroVideo);
+
       // Build summary
       PreflightSummary summary = buildSummary(slideResults);
 
+      // Update summary with intro video info
+      if (presentationResult != null) {
+        summary.setHasIntroVideo(presentationResult.getIntroVideoStatus() == CheckStatus.PASSED);
+        summary.setIntroVideoStatus(presentationResult.getIntroVideoStatus());
+        summary.setIntroVideoUrl(presentationResult.getIntroVideoUrl());
+        if (presentationResult.getGenerationStatus() != null) {
+          summary.setIntroVideoGenerationStatus(
+              presentationResult.getGenerationStatus().toString());
+        }
+      }
+
       // Determine overall status
-      PreflightStatus overallStatus = determineOverallStatus(summary, slideResults);
+      PreflightStatus overallStatus =
+          determineOverallStatus(summary, slideResults, presentationResult);
 
       // Build response
       PreflightCheckResponseDto response =
@@ -98,6 +117,7 @@ public class PreflightCheckService {
               .presentationId(presentationId)
               .overallStatus(overallStatus)
               .slideResults(slideResults)
+              .presentationCheckResult(presentationResult)
               .summary(summary)
               .checkedAt(Instant.now())
               .build();
@@ -347,13 +367,32 @@ public class PreflightCheckService {
   }
 
   private PreflightStatus determineOverallStatus(
-      PreflightSummary summary, List<SlideCheckResult> results) {
-    if (summary.isAllMandatoryChecksPassed()) {
-      if (summary.getSlidesWithUnpublishedAssets() > 0) {
+      PreflightSummary summary,
+      List<SlideCheckResult> results,
+      PresentationCheckResult presentationResult) {
+    // Check slide-level readiness
+    boolean slidesReady = summary.isAllMandatoryChecksPassed();
+
+    // Check presentation-level readiness
+    boolean introVideoReady =
+        presentationResult == null
+            || presentationResult.getIntroVideoStatus() == CheckStatus.PASSED
+            || presentationResult.getIntroVideoStatus() == CheckStatus.NOT_APPLICABLE
+            || presentationResult.getIntroVideoStatus()
+                == CheckStatus.NOT_FOUND; // NOT_FOUND is ok - intro video is optional
+
+    boolean hasIntroVideoWarning =
+        presentationResult != null
+            && (presentationResult.getIntroVideoStatus() == CheckStatus.WARNING
+                || presentationResult.getIntroVideoStatus() == CheckStatus.IN_PROGRESS);
+
+    if (slidesReady && introVideoReady) {
+      if (summary.getSlidesWithUnpublishedAssets() > 0 || hasIntroVideoWarning) {
         return PreflightStatus.HAS_WARNINGS;
       }
       return PreflightStatus.READY;
     }
+
     return PreflightStatus.INCOMPLETE;
   }
 
@@ -422,5 +461,91 @@ public class PreflightCheckService {
   private void cleanupCache() {
     Instant cutoff = Instant.now().minusSeconds(CACHE_TTL_MINUTES * 60);
     recentChecks.entrySet().removeIf(entry -> entry.getValue().getCheckedAt().isBefore(cutoff));
+  }
+
+  /**
+   * Validates presentation-level assets like intro videos.
+   *
+   * @param presentationId the presentation ID
+   * @param checkIntroVideo whether to check for intro video
+   * @return presentation check results
+   */
+  private PresentationCheckResult validatePresentationAssets(
+      UUID presentationId, boolean checkIntroVideo) {
+
+    List<String> issues = new ArrayList<>();
+    Map<String, Object> metadata = new HashMap<>();
+    CheckStatus introVideoStatus = CheckStatus.NOT_APPLICABLE;
+    UUID introVideoId = null;
+    String introVideoUrl = null;
+    AvatarGenerationStatusType generationStatus = null;
+    LocalDateTime createdAt = null;
+    LocalDateTime completedAt = null;
+    Double durationSeconds = null;
+
+    if (checkIntroVideo) {
+      // Find the latest intro video for this presentation
+      Optional<IntroVideo> introVideoOpt =
+          introVideoRepository.findLatestByPresentationId(presentationId);
+
+      if (introVideoOpt.isPresent()) {
+        IntroVideo video = introVideoOpt.get();
+        introVideoId = video.getId();
+        generationStatus = video.getStatus();
+        createdAt = video.getCreatedAt();
+        completedAt = video.getCompletedAt();
+        durationSeconds = video.getDurationSeconds();
+
+        metadata.put("introVideoId", video.getId());
+        metadata.put("generationStatus", video.getStatus());
+        metadata.put("veoGenerationId", video.getVeoGenerationId());
+
+        switch (video.getStatus()) {
+          case COMPLETED:
+            if (video.getPublishedUrl() != null && !video.getPublishedUrl().isEmpty()) {
+              introVideoStatus = CheckStatus.PASSED;
+              introVideoUrl = video.getPublishedUrl();
+              metadata.put("publishedUrl", video.getPublishedUrl());
+              metadata.put("duration", video.getDurationSeconds());
+            } else {
+              introVideoStatus = CheckStatus.WARNING;
+              issues.add("Intro video generated but not published to R2");
+            }
+            break;
+          case PROCESSING:
+          case PENDING:
+            introVideoStatus = CheckStatus.IN_PROGRESS;
+            issues.add("Intro video generation in progress");
+            break;
+          case FAILED:
+            introVideoStatus = CheckStatus.FAILED;
+            issues.add(
+                "Intro video generation failed: "
+                    + (video.getErrorMessage() != null
+                        ? video.getErrorMessage()
+                        : "Unknown error"));
+            break;
+          case CANCELLED:
+            introVideoStatus = CheckStatus.FAILED;
+            issues.add("Intro video generation was cancelled");
+            break;
+        }
+      } else {
+        introVideoStatus = CheckStatus.NOT_FOUND;
+        issues.add("No intro video generated for this presentation");
+      }
+    }
+
+    return PresentationCheckResult.builder()
+        .introVideoStatus(introVideoStatus)
+        .introVideoId(introVideoId)
+        .introVideoUrl(introVideoUrl)
+        .generationStatus(generationStatus)
+        .createdAt(createdAt)
+        .completedAt(completedAt)
+        .durationSeconds(durationSeconds)
+        .issues(issues)
+        .metadata(metadata)
+        .build();
   }
 }

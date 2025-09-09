@@ -376,6 +376,32 @@ public class R2AssetService {
       case PRESENTATION_FULL_VIDEO:
         return Paths.get(basePath, "video", "presentation.mp4");
 
+      case PRESENTATION_INTRO_VIDEO:
+        // Look for intro videos in the expected directory
+        Path introVideoDir = Paths.get(basePath, "intro_videos");
+        if (Files.exists(introVideoDir) && Files.isDirectory(introVideoDir)) {
+          try {
+            // Find the most recent intro video file
+            return Files.list(introVideoDir)
+                .filter(Files::isRegularFile)
+                .filter(p -> p.getFileName().toString().endsWith(".mp4"))
+                .max(
+                    (p1, p2) -> {
+                      try {
+                        return Files.getLastModifiedTime(p1)
+                            .compareTo(Files.getLastModifiedTime(p2));
+                      } catch (IOException e) {
+                        return 0;
+                      }
+                    })
+                .orElse(null);
+          } catch (IOException e) {
+            log.error("Error listing intro video files", e);
+          }
+        }
+        log.warn("No intro video found at: {}", introVideoDir);
+        break;
+
       default:
         log.warn("Asset type {} not yet implemented", assetType);
     }

@@ -34,6 +34,15 @@ public class MultiModelAIConfig {
   @Value("${app.ai.models.text.max-completion-tokens:8000}")
   private Integer textMaxCompletionTokens;
 
+  @Value("${app.ai.veo-prompt.model:gpt-5-mini}")
+  private String veoPromptModel;
+
+  @Value("${app.ai.veo-prompt.temperature:0.8}")
+  private Double veoPromptTemperature;
+
+  @Value("${app.ai.veo-prompt.max-completion-tokens:2048}")
+  private Integer veoPromptMaxCompletionTokens;
+
   /**
    * Vision model for processing images and slides (GPT-4o) Better for visual understanding tasks
    */
@@ -99,6 +108,30 @@ public class MultiModelAIConfig {
 
     // Create a mutated version with specific options
     // Using defaultOptions should override the base model configuration
+    return baseChatModel.mutate().defaultOptions(optionsBuilder.build()).build();
+  }
+
+  /** Veo prompt generation model (GPT-5-mini) Optimized for creative prompt generation */
+  @Bean(name = "veoPromptChatModel")
+  public ChatModel veoPromptChatModel() {
+    log.info(
+        "Configuring Veo Prompt Model: {} with max completion tokens: {}, temperature: {}",
+        veoPromptModel,
+        veoPromptMaxCompletionTokens,
+        veoPromptTemperature);
+
+    OpenAiChatOptions.Builder optionsBuilder =
+        OpenAiChatOptions.builder().model(veoPromptModel).temperature(veoPromptTemperature);
+
+    // GPT-5 models use maxCompletionTokens instead of maxTokens
+    if (veoPromptModel.startsWith("gpt-5")) {
+      optionsBuilder.maxCompletionTokens(veoPromptMaxCompletionTokens);
+      log.debug("Using maxCompletionTokens for GPT-5 model");
+    } else {
+      optionsBuilder.maxTokens(veoPromptMaxCompletionTokens);
+      log.debug("Using maxTokens for non-GPT-5 model");
+    }
+
     return baseChatModel.mutate().defaultOptions(optionsBuilder.build()).build();
   }
 

@@ -26,4 +26,10 @@ public class PreflightCheckRequestDto {
    * updated externally.
    */
   @Builder.Default private boolean forceRefresh = false;
+
+  /**
+   * Whether to check for intro video generation status at the presentation level. Intro videos are
+   * optional presentation-level assets.
+   */
+  @Builder.Default private boolean checkIntroVideo = true;
 }

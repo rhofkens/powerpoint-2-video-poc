@@ -41,4 +41,16 @@ public class PreflightSummary {
 
   /** Whether all mandatory checks have passed */
   private boolean allMandatoryChecksPassed;
+
+  /** Whether the presentation has an intro video */
+  private boolean hasIntroVideo;
+
+  /** Status of the intro video (if exists) */
+  private CheckStatus introVideoStatus;
+
+  /** Intro video generation status if in progress */
+  private String introVideoGenerationStatus;
+
+  /** URL of the published intro video if available */
+  private String introVideoUrl;
 }
