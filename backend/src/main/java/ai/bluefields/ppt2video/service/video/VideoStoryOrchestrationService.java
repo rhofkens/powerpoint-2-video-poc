@@ -397,9 +397,9 @@ public class VideoStoryOrchestrationService {
     log.debug("Validating asset URLs for presentation: {}", presentation.getId());
 
     // Validate intro video URL
-    if (introVideo != null && introVideo.getPublishedUrl() != null) {
-      PresignedUrlValidator.UrlValidationResult result =
-          urlValidator.validateUrl(introVideo.getPublishedUrl());
+    if (introVideo != null && introVideo.getR2Asset() != null) {
+      String publishedUrl = r2AssetService.regeneratePresignedUrl(introVideo.getR2Asset().getId());
+      PresignedUrlValidator.UrlValidationResult result = urlValidator.validateUrl(publishedUrl);
 
       if (!result.isValid()) {
         log.warn(

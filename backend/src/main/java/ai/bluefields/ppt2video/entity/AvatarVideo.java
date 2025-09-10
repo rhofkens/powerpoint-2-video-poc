@@ -57,8 +57,9 @@ public class AvatarVideo {
   @Column(name = "video_url", columnDefinition = "TEXT")
   private String videoUrl;
 
-  @Column(name = "r2_asset_id")
-  private UUID r2AssetId;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "r2_asset_id")
+  private AssetMetadata r2Asset;
 
   @Column(name = "duration_seconds")
   private Double durationSeconds;
@@ -80,9 +81,6 @@ public class AvatarVideo {
 
   @Column(name = "completed_at")
   private LocalDateTime completedAt;
-
-  @Column(name = "published_url", length = 2048)
-  private String publishedUrl;
 
   @Column(name = "published_at")
   private LocalDateTime publishedAt;

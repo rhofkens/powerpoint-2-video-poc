@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Service for building Shotstack-specific video compositions. Handles timeline construction with
@@ -44,6 +45,9 @@ public class ShotstackCompositionService {
 
   @Value("${shotstack.assets.mode:r2-direct}")
   private String assetMode;
+
+  @Value("${shotstack.assets.cache-duration-hours:24}")
+  private int cacheDurationHours;
 
   /** Builds the full timeline composition combining intro and slides. */
   public JsonNode buildFullTimeline(Presentation presentation, IntroVideo introVideo) {
@@ -116,6 +120,7 @@ public class ShotstackCompositionService {
   }
 
   /** Builds the slide composition with avatar videos and slide images. */
+  @Transactional(readOnly = true)
   public List<ObjectNode> buildSlideComposition(
       Presentation presentation, Map<String, String> assetUrls) {
     log.info("Building slide composition for presentation: {}", presentation.getId());
@@ -147,6 +152,14 @@ public class ShotstackCompositionService {
 
       // Use the most recent completed avatar video
       AvatarVideo avatarVideo = avatarVideos.get(0);
+
+      // Debug logging for r2Asset
+      log.info(
+          "Avatar video {} for slide {} - r2Asset: {}, r2AssetId: {}",
+          avatarVideo.getId(),
+          slide.getId(),
+          avatarVideo.getR2Asset() != null ? "present" : "null",
+          avatarVideo.getR2Asset() != null ? avatarVideo.getR2Asset().getId() : "N/A");
 
       // Check if we have duration data
       if (avatarVideo.getDurationSeconds() == null || avatarVideo.getDurationSeconds() <= 0) {
@@ -301,17 +314,24 @@ public class ShotstackCompositionService {
 
   /** Gets the appropriate intro video URL based on the asset mode. */
   private String getIntroVideoUrl(IntroVideo introVideo) {
-    if ("shotstack-upload".equalsIgnoreCase(assetMode)) {
-      // Try to get from Shotstack cache first
-      String cachedUrl = assetPublisher.getCachedIntroVideoUrl(introVideo.getId());
-      if (cachedUrl != null) {
-        return cachedUrl;
-      }
-      // Fallback to R2 URL if not in cache
-      log.warn("Intro video {} not found in Shotstack cache, using R2 URL", introVideo.getId());
+    AssetMetadata assetMetadata = introVideo.getR2Asset();
+    if (assetMetadata == null) {
+      log.error("Intro video {} has no AssetMetadata", introVideo.getId());
+      return null;
     }
-    // Use R2 URL directly (already refreshed by PreCompositionAssetPublisher)
-    return introVideo.getPublishedUrl();
+
+    if ("shotstack-upload".equalsIgnoreCase(assetMode)) {
+      // Check if we have a valid Shotstack URL in AssetMetadata
+      if (assetMetadata.getShotstackUrl() != null
+          && assetMetadata.getShotstackUploadedAt() != null
+          && !isExpired(assetMetadata.getShotstackUploadedAt())) {
+        return assetMetadata.getShotstackUrl();
+      }
+      // Fallback to R2 URL if Shotstack URL is expired or missing
+      log.warn("Intro video {} Shotstack URL expired or missing, using R2 URL", introVideo.getId());
+    }
+    // Use fresh R2 URL directly
+    return r2AssetService.regeneratePresignedUrl(assetMetadata.getId());
   }
 
   /**
@@ -319,17 +339,28 @@ public class ShotstackCompositionService {
    * PreCompositionAssetPublisher.
    */
   private String getAssetUrl(AvatarVideo avatarVideo) {
-    if ("shotstack-upload".equalsIgnoreCase(assetMode)) {
-      // Try to get from Shotstack cache first
-      String cachedUrl = assetPublisher.getCachedAvatarVideoUrl(avatarVideo.getId());
-      if (cachedUrl != null) {
-        return cachedUrl;
-      }
-      // Fallback to R2 URL if not in cache
-      log.warn("Avatar video {} not found in Shotstack cache, using R2 URL", avatarVideo.getId());
+    AssetMetadata assetMetadata = avatarVideo.getR2Asset();
+    if (assetMetadata == null) {
+      log.error(
+          "Avatar video {} has no AssetMetadata - slideId: {}",
+          avatarVideo.getId(),
+          avatarVideo.getSlide() != null ? avatarVideo.getSlide().getId() : "null");
+      return null;
     }
-    // Use R2 URL directly (already refreshed by PreCompositionAssetPublisher)
-    return avatarVideo.getPublishedUrl();
+
+    if ("shotstack-upload".equalsIgnoreCase(assetMode)) {
+      // Check if we have a valid Shotstack URL in AssetMetadata
+      if (assetMetadata.getShotstackUrl() != null
+          && assetMetadata.getShotstackUploadedAt() != null
+          && !isExpired(assetMetadata.getShotstackUploadedAt())) {
+        return assetMetadata.getShotstackUrl();
+      }
+      // Fallback to R2 URL if Shotstack URL is expired or missing
+      log.warn(
+          "Avatar video {} Shotstack URL expired or missing, using R2 URL", avatarVideo.getId());
+    }
+    // Use fresh R2 URL directly
+    return r2AssetService.regeneratePresignedUrl(assetMetadata.getId());
   }
 
   /** Gets the appropriate asset URL for slide images based on the asset mode. */
@@ -396,6 +427,7 @@ public class ShotstackCompositionService {
   }
 
   // Keep old signature for backward compatibility
+  @Transactional(readOnly = true)
   public List<ObjectNode> buildSlideComposition(Presentation presentation) {
     return buildSlideComposition(presentation, new HashMap<>());
   }
@@ -596,5 +628,13 @@ public class ShotstackCompositionService {
         .replace(">", "&gt;")
         .replace("\"", "&quot;")
         .replace("'", "&#39;");
+  }
+
+  /** Checks if a Shotstack URL is expired based on upload timestamp. */
+  private boolean isExpired(java.time.LocalDateTime uploadedAt) {
+    if (uploadedAt == null) {
+      return true;
+    }
+    return uploadedAt.plusHours(cacheDurationHours).isBefore(java.time.LocalDateTime.now());
   }
 }

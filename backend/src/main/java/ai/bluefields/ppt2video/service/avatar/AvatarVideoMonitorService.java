@@ -2,10 +2,12 @@ package ai.bluefields.ppt2video.service.avatar;
 
 import ai.bluefields.ppt2video.dto.AssetDto;
 import ai.bluefields.ppt2video.dto.AvatarVideoStatusDto;
+import ai.bluefields.ppt2video.entity.AssetMetadata;
 import ai.bluefields.ppt2video.entity.AssetType;
 import ai.bluefields.ppt2video.entity.AvatarGenerationStatusType;
 import ai.bluefields.ppt2video.entity.AvatarVideo;
 import ai.bluefields.ppt2video.repository.AvatarVideoRepository;
+import ai.bluefields.ppt2video.service.AssetMetadataService;
 import ai.bluefields.ppt2video.service.R2AssetService;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,6 +32,7 @@ public class AvatarVideoMonitorService {
   private final AvatarVideoRepository avatarVideoRepository;
   private final AvatarProviderFactory avatarProviderFactory;
   private final R2AssetService r2AssetService;
+  private final AssetMetadataService assetMetadataService;
 
   /**
    * Monitor video status asynchronously in a new transaction.
@@ -160,7 +163,7 @@ public class AvatarVideoMonitorService {
   private void publishToR2(AvatarVideo avatarVideo) {
     try {
       // Check if already published
-      if (avatarVideo.getPublishedUrl() != null) {
+      if (avatarVideo.getR2Asset() != null) {
         log.info("Avatar video {} already published to R2", avatarVideo.getId());
         return;
       }
@@ -228,9 +231,14 @@ public class AvatarVideoMonitorService {
                 AssetType.SLIDE_AVATAR_VIDEO,
                 true); // Force republish to upload the new video
 
-        // Update avatar video with published URL and R2 asset ID
-        avatarVideo.setPublishedUrl(publishedAsset.getDownloadUrl());
-        avatarVideo.setR2AssetId(publishedAsset.getId());
+        // Get the AssetMetadata entity instead of DTO
+        AssetMetadata assetMetadata =
+            assetMetadataService
+                .getAsset(publishedAsset.getId())
+                .orElseThrow(() -> new RuntimeException("Failed to retrieve published asset"));
+
+        // Update avatar video with R2 asset reference
+        avatarVideo.setR2Asset(assetMetadata);
         avatarVideo.setPublishedAt(LocalDateTime.now());
         avatarVideoRepository.save(avatarVideo);
 
@@ -240,11 +248,10 @@ public class AvatarVideoMonitorService {
             avatarVideoRepository.findBySlideId(avatarVideo.getSlide().getId());
         for (AvatarVideo oldVideo : olderVideos) {
           if (!oldVideo.getId().equals(avatarVideo.getId())) {
-            if (oldVideo.getPublishedUrl() != null || oldVideo.getVideoUrl() != null) {
+            if (oldVideo.getR2Asset() != null || oldVideo.getVideoUrl() != null) {
               log.info("Clearing stale URLs from older avatar video: {}", oldVideo.getId());
-              oldVideo.setPublishedUrl(null);
+              oldVideo.setR2Asset(null);
               oldVideo.setVideoUrl(null); // Also clear HeyGen URL to prevent confusion
-              // Don't clear R2 asset ID as it's useful for tracking what was deleted
               avatarVideoRepository.save(oldVideo);
             }
           }

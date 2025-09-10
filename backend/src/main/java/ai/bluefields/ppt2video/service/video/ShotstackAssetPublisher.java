@@ -35,24 +35,6 @@ public class ShotstackAssetPublisher {
   @Value("${shotstack.assets.cache-duration-hours:24}")
   private int cacheDurationHours;
 
-  // Runtime cache for avatar and intro video Shotstack URLs
-  // Key format: "avatar:{uuid}" or "intro:{uuid}"
-  private final Map<String, CachedShotstackUrl> urlCache = new ConcurrentHashMap<>();
-
-  private static class CachedShotstackUrl {
-    final String url;
-    final LocalDateTime uploadedAt;
-
-    CachedShotstackUrl(String url, LocalDateTime uploadedAt) {
-      this.url = url;
-      this.uploadedAt = uploadedAt;
-    }
-
-    boolean isExpired(int cacheHours) {
-      return uploadedAt.plusHours(cacheHours).isBefore(LocalDateTime.now());
-    }
-  }
-
   /**
    * Uploads an asset to Shotstack if not already cached.
    *
@@ -370,62 +352,5 @@ public class ShotstackAssetPublisher {
     }
 
     return null; // Not cached or expired
-  }
-
-  /**
-   * Gets a cached Shotstack URL for an avatar video. Note: Avatar videos don't use AssetMetadata,
-   * so we need a special method.
-   *
-   * @param avatarVideoId The avatar video ID
-   * @return The Shotstack URL if the avatar was recently uploaded, otherwise null
-   */
-  public String getCachedAvatarVideoUrl(UUID avatarVideoId) {
-    String cacheKey = "avatar:" + avatarVideoId.toString();
-    CachedShotstackUrl cached = urlCache.get(cacheKey);
-
-    if (cached != null && !cached.isExpired(cacheDurationHours)) {
-      log.debug("Found cached Shotstack URL for avatar video: {}", avatarVideoId);
-      return cached.url;
-    }
-
-    if (cached != null) {
-      // Remove expired entry
-      urlCache.remove(cacheKey);
-      log.debug("Removed expired Shotstack URL for avatar video: {}", avatarVideoId);
-    }
-
-    return null;
-  }
-
-  /**
-   * Gets a cached Shotstack URL for an intro video. Note: Intro videos don't use AssetMetadata, so
-   * we need a special method.
-   *
-   * @param introVideoId The intro video ID
-   * @return The Shotstack URL if the intro was recently uploaded, otherwise null
-   */
-  public String getCachedIntroVideoUrl(UUID introVideoId) {
-    String cacheKey = "intro:" + introVideoId.toString();
-    CachedShotstackUrl cached = urlCache.get(cacheKey);
-
-    if (cached != null && !cached.isExpired(cacheDurationHours)) {
-      log.debug("Found cached Shotstack URL for intro video: {}", introVideoId);
-      return cached.url;
-    }
-
-    if (cached != null) {
-      // Remove expired entry
-      urlCache.remove(cacheKey);
-      log.debug("Removed expired Shotstack URL for intro video: {}", introVideoId);
-    }
-
-    return null;
-  }
-
-  /** Stores a Shotstack URL in the cache for avatar or intro videos. */
-  public void cacheVideoUrl(UUID videoId, String videoType, String shotstackUrl) {
-    String cacheKey = videoType + ":" + videoId.toString();
-    urlCache.put(cacheKey, new CachedShotstackUrl(shotstackUrl, LocalDateTime.now()));
-    log.debug("Cached Shotstack URL for {} video: {}", videoType, videoId);
   }
 }

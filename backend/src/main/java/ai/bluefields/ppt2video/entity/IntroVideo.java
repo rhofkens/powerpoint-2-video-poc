@@ -64,9 +64,6 @@ public class IntroVideo {
   @Column(name = "google_video_url", columnDefinition = "TEXT")
   private String googleVideoUrl;
 
-  @Column(name = "published_url", columnDefinition = "TEXT")
-  private String publishedUrl;
-
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "r2_asset_id")
   private AssetMetadata r2Asset;

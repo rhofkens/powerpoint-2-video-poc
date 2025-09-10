@@ -169,7 +169,7 @@ public class AvatarVideoService {
     // Filter out videos without proper URLs to prevent frontend confusion
     return videos.stream()
         .filter(v -> v.getStatus() == AvatarGenerationStatusType.COMPLETED)
-        .filter(v -> v.getPublishedUrl() != null || v.getVideoUrl() != null)
+        .filter(v -> v.getR2Asset() != null || v.getVideoUrl() != null)
         .limit(1) // Return only the most recent video to avoid confusion
         .map(this::convertToResponse)
         .collect(Collectors.toList());
@@ -203,7 +203,7 @@ public class AvatarVideoService {
     }
 
     // Check if already published
-    if (avatarVideo.getPublishedUrl() != null) {
+    if (avatarVideo.getR2Asset() != null) {
       log.info("Avatar video {} is already published", id);
       throw new ProcessingException("Avatar video is already published");
     }
@@ -267,9 +267,14 @@ public class AvatarVideoService {
                 avatarVideo.getSlide().getId(),
                 AssetType.SLIDE_AVATAR_VIDEO);
 
-        // Update avatar video with published URL and R2 asset ID
-        avatarVideo.setPublishedUrl(publishedAsset.getDownloadUrl());
-        avatarVideo.setR2AssetId(publishedAsset.getId());
+        // Get the AssetMetadata entity instead of DTO
+        AssetMetadata assetMetadata =
+            assetMetadataService
+                .getAsset(publishedAsset.getId())
+                .orElseThrow(() -> new ProcessingException("Failed to retrieve published asset"));
+
+        // Update avatar video with R2 asset reference
+        avatarVideo.setR2Asset(assetMetadata);
         avatarVideo.setPublishedAt(LocalDateTime.now());
         avatarVideoRepository.save(avatarVideo);
 
@@ -509,82 +514,13 @@ public class AvatarVideoService {
    * @return refreshed published URL or existing one if still valid
    */
   private String refreshPublishedUrlIfNeeded(AvatarVideo avatarVideo) {
-    // If no published URL or no R2 asset ID, return existing URL
-    if (avatarVideo.getPublishedUrl() == null || avatarVideo.getR2AssetId() == null) {
-      return avatarVideo.getPublishedUrl();
+    // If no R2 asset, return null
+    if (avatarVideo.getR2Asset() == null) {
+      return null;
     }
 
-    // Check if URL contains expiration timestamp
-    String url = avatarVideo.getPublishedUrl();
-    if (url.contains("X-Amz-Expires")) {
-      try {
-        // Parse the URL to check actual expiration
-        java.net.URI uri = java.net.URI.create(url);
-        java.net.URL parsedUrl = uri.toURL();
-        String query = parsedUrl.getQuery();
-
-        // Parse query parameters to get X-Amz-Date and X-Amz-Expires
-        java.util.Map<String, String> params = new java.util.HashMap<>();
-        if (query != null) {
-          for (String param : query.split("&")) {
-            String[] keyValue = param.split("=", 2);
-            if (keyValue.length == 2) {
-              params.put(keyValue[0], java.net.URLDecoder.decode(keyValue[1], "UTF-8"));
-            }
-          }
-        }
-
-        // Check if URL is actually expired
-        String amzDate = params.get("X-Amz-Date");
-        String amzExpires = params.get("X-Amz-Expires");
-
-        if (amzDate != null && amzExpires != null) {
-          // Parse the date in format: 20250905T101402Z
-          java.time.format.DateTimeFormatter formatter =
-              java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'");
-          java.time.LocalDateTime signedDate = java.time.LocalDateTime.parse(amzDate, formatter);
-          java.time.ZonedDateTime signedDateTime = signedDate.atZone(java.time.ZoneId.of("UTC"));
-
-          // Add expiration seconds
-          long expiresInSeconds = Long.parseLong(amzExpires);
-          java.time.ZonedDateTime expirationDateTime = signedDateTime.plusSeconds(expiresInSeconds);
-
-          // Check if expired (with 5 minute buffer for safety)
-          java.time.ZonedDateTime now = java.time.ZonedDateTime.now(java.time.ZoneId.of("UTC"));
-          if (now.isAfter(expirationDateTime.minusMinutes(5))) {
-            // URL is expired or about to expire, refresh it
-            AssetMetadata assetMetadata =
-                assetMetadataService
-                    .getAsset(avatarVideo.getR2AssetId())
-                    .orElseThrow(
-                        () ->
-                            new ResourceNotFoundException(
-                                "R2 asset not found: " + avatarVideo.getR2AssetId()));
-
-            // Generate a new presigned URL
-            PresignedUrl newPresignedUrl = presignedUrlService.generateDownloadUrl(assetMetadata);
-
-            // Update the avatar video with the new URL
-            avatarVideo.setPublishedUrl(newPresignedUrl.getPresignedUrl());
-            avatarVideoRepository.save(avatarVideo);
-
-            log.info(
-                "Refreshed expired R2 URL for avatar video: {} (expired at: {})",
-                avatarVideo.getId(),
-                expirationDateTime);
-            return newPresignedUrl.getPresignedUrl();
-          }
-        }
-
-      } catch (Exception e) {
-        log.error("Failed to check/refresh R2 URL for avatar video: {}", avatarVideo.getId(), e);
-        // Return existing URL if check fails
-        return avatarVideo.getPublishedUrl();
-      }
-    }
-
-    // URL is still valid or doesn't appear to be a presigned URL, return as-is
-    return avatarVideo.getPublishedUrl();
+    // Generate fresh presigned URL
+    return r2AssetService.regeneratePresignedUrl(avatarVideo.getR2Asset().getId());
   }
 
   /**
@@ -614,7 +550,7 @@ public class AvatarVideoService {
         .audioUrl(avatarVideo.getAudioUrl())
         .videoUrl(videoUrlToReturn) // Use R2 URL if available
         .publishedUrl(refreshedUrl)
-        .r2AssetId(avatarVideo.getR2AssetId())
+        .r2AssetId(avatarVideo.getR2Asset() != null ? avatarVideo.getR2Asset().getId() : null)
         .durationSeconds(avatarVideo.getDurationSeconds())
         .progressPercentage(avatarVideo.getProgressPercentage())
         .errorMessage(avatarVideo.getErrorMessage())

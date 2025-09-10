@@ -59,7 +59,8 @@ public interface AvatarVideoRepository extends JpaRepository<AvatarVideo, UUID> 
    * @param status the generation status
    * @return list of avatar videos
    */
-  @Query("SELECT av FROM AvatarVideo av WHERE av.slide.id = :slideId AND av.status = :status")
+  @Query(
+      "SELECT av FROM AvatarVideo av LEFT JOIN FETCH av.r2Asset WHERE av.slide.id = :slideId AND av.status = :status ORDER BY av.createdAt DESC")
   List<AvatarVideo> findBySlideIdAndStatus(
       @Param("slideId") UUID slideId, @Param("status") AvatarGenerationStatusType status);
 

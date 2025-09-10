@@ -30,6 +30,7 @@ public class PreflightCheckService {
   private final AssetMetadataRepository assetMetadataRepository;
   private final R2AssetVerificationService r2AssetVerificationService;
   private final IntroVideoRepository introVideoRepository;
+  private final R2AssetService r2AssetService;
 
   // Simple in-memory cache for recent checks (could be replaced with Redis)
   private final Map<UUID, PreflightCheckResponseDto> recentChecks = new ConcurrentHashMap<>();
@@ -213,9 +214,10 @@ public class PreflightCheckService {
     CheckStatus avatarVideoStatus = CheckStatus.FAILED;
     if (video != null && video.getVideoUrl() != null) {
       // Check if video is published to R2
-      if (video.getPublishedUrl() != null && !video.getPublishedUrl().isEmpty()) {
+      if (video.getR2Asset() != null) {
         avatarVideoStatus = CheckStatus.PASSED;
-        metadata.put("videoPublishedUrl", video.getPublishedUrl());
+        String publishedUrl = r2AssetService.regeneratePresignedUrl(video.getR2Asset().getId());
+        metadata.put("videoPublishedUrl", publishedUrl);
       } else {
         avatarVideoStatus = CheckStatus.WARNING;
         issues.add("Avatar video exists but not published to R2");
@@ -502,10 +504,10 @@ public class PreflightCheckService {
 
         switch (video.getStatus()) {
           case COMPLETED:
-            if (video.getPublishedUrl() != null && !video.getPublishedUrl().isEmpty()) {
+            if (video.getR2Asset() != null) {
               introVideoStatus = CheckStatus.PASSED;
-              introVideoUrl = video.getPublishedUrl();
-              metadata.put("publishedUrl", video.getPublishedUrl());
+              introVideoUrl = r2AssetService.regeneratePresignedUrl(video.getR2Asset().getId());
+              metadata.put("publishedUrl", introVideoUrl);
               metadata.put("duration", video.getDurationSeconds());
             } else {
               introVideoStatus = CheckStatus.WARNING;

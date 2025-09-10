@@ -2,8 +2,10 @@ package ai.bluefields.ppt2video.controller;
 
 import ai.bluefields.ppt2video.dto.ApiResponse;
 import ai.bluefields.ppt2video.dto.AssetDto;
+import ai.bluefields.ppt2video.entity.AssetMetadata;
 import ai.bluefields.ppt2video.entity.AssetType;
 import ai.bluefields.ppt2video.entity.AvatarVideo;
+import ai.bluefields.ppt2video.repository.AssetMetadataRepository;
 import ai.bluefields.ppt2video.repository.AvatarVideoRepository;
 import ai.bluefields.ppt2video.repository.PresentationRepository;
 import ai.bluefields.ppt2video.repository.SlideRepository;
@@ -38,6 +40,7 @@ public class R2UploadController {
 
   private final R2AssetService r2AssetService;
   private final AvatarVideoRepository avatarVideoRepository;
+  private final AssetMetadataRepository assetMetadataRepository;
   private final PresentationRepository presentationRepository;
   private final SlideRepository slideRepository;
 
@@ -136,9 +139,13 @@ public class R2UploadController {
           avatarVideoRepository.findBySlideIdAndStatusCompleted(slideId);
 
       for (AvatarVideo avatarVideo : avatarVideos) {
-        if (avatarVideo.getR2AssetId() == null) {
-          avatarVideo.setR2AssetId(asset.getId());
-          avatarVideo.setPublishedUrl(asset.getDownloadUrl());
+        if (avatarVideo.getR2Asset() == null) {
+          // Get AssetMetadata entity
+          AssetMetadata assetMetadata =
+              assetMetadataRepository
+                  .findById(asset.getId())
+                  .orElseThrow(() -> new RuntimeException("Failed to find asset metadata"));
+          avatarVideo.setR2Asset(assetMetadata);
           avatarVideo.setPublishedAt(LocalDateTime.now());
           avatarVideoRepository.save(avatarVideo);
           log.info(
@@ -249,8 +256,7 @@ public class R2UploadController {
                 avatarVideoRepository.findBySlideIdAndStatusCompleted(slideId);
 
             boolean alreadyPublished =
-                avatarVideos.stream()
-                    .anyMatch(av -> av.getR2AssetId() != null && av.getPublishedUrl() != null);
+                avatarVideos.stream().anyMatch(av -> av.getR2Asset() != null);
 
             if (alreadyPublished) {
               // Force republish to get fresh URL
@@ -260,8 +266,12 @@ public class R2UploadController {
 
               // Update all avatar video records
               for (AvatarVideo avatarVideo : avatarVideos) {
-                avatarVideo.setR2AssetId(asset.getId());
-                avatarVideo.setPublishedUrl(asset.getDownloadUrl());
+                // Get AssetMetadata entity
+                AssetMetadata assetMetadata =
+                    assetMetadataRepository
+                        .findById(asset.getId())
+                        .orElseThrow(() -> new RuntimeException("Failed to find asset metadata"));
+                avatarVideo.setR2Asset(assetMetadata);
                 avatarVideo.setPublishedAt(LocalDateTime.now());
                 avatarVideoRepository.save(avatarVideo);
               }
@@ -278,9 +288,13 @@ public class R2UploadController {
 
               // Update avatar video records
               for (AvatarVideo avatarVideo : avatarVideos) {
-                if (avatarVideo.getR2AssetId() == null) {
-                  avatarVideo.setR2AssetId(asset.getId());
-                  avatarVideo.setPublishedUrl(asset.getDownloadUrl());
+                if (avatarVideo.getR2Asset() == null) {
+                  // Get AssetMetadata entity
+                  AssetMetadata assetMetadata =
+                      assetMetadataRepository
+                          .findById(asset.getId())
+                          .orElseThrow(() -> new RuntimeException("Failed to find asset metadata"));
+                  avatarVideo.setR2Asset(assetMetadata);
                   avatarVideo.setPublishedAt(LocalDateTime.now());
                   avatarVideoRepository.save(avatarVideo);
                 }

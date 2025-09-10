@@ -31,7 +31,6 @@ public class PreCompositionAssetPublisher {
   private final IntroVideoRepository introVideoRepository;
   private final R2AssetService r2AssetService;
   private final ShotstackAssetPublisher shotstackAssetPublisher;
-  private final PresignedUrlValidator urlValidator;
 
   @Value("${shotstack.assets.mode:r2-direct}")
   private String assetMode;
@@ -72,13 +71,13 @@ public class PreCompositionAssetPublisher {
   private AssetDiscoveryResult discoverAllAssets(UUID presentationId) {
     AssetDiscoveryResult result = new AssetDiscoveryResult();
 
-    // Fetch intro video - get latest completed intro video
+    // Fetch intro video - get latest completed intro video with AssetMetadata
     List<IntroVideo> completedIntros =
         introVideoRepository.findByStatus(
             ai.bluefields.ppt2video.entity.AvatarGenerationStatusType.COMPLETED);
     completedIntros.stream()
         .filter(iv -> iv.getPresentation().getId().equals(presentationId))
-        .filter(iv -> iv.getPublishedUrl() != null)
+        .filter(iv -> iv.getR2Asset() != null)
         .findFirst()
         .ifPresent(result.introVideos::add);
 
@@ -88,12 +87,12 @@ public class PreCompositionAssetPublisher {
             presentationId, AssetType.SLIDE_IMAGE);
     result.slideImages.addAll(slideImages);
 
-    // Fetch all completed avatar videos with published URLs
+    // Fetch all completed avatar videos with AssetMetadata
     List<AvatarVideo> allAvatarVideos =
         avatarVideoRepository.findByPresentationIdOrderByCreatedAtDesc(presentationId);
     allAvatarVideos.stream()
         .filter(av -> av.getStatus() == AvatarGenerationStatusType.COMPLETED)
-        .filter(av -> av.getPublishedUrl() != null)
+        .filter(av -> av.getR2Asset() != null)
         .forEach(result.avatarVideos::add);
 
     log.debug(
@@ -116,30 +115,19 @@ public class PreCompositionAssetPublisher {
 
     int refreshedCount = 0;
 
-    // Refresh intro video URLs
+    // Refresh intro video URLs - always regenerate for freshness
     for (IntroVideo introVideo : discovery.introVideos) {
-      if (needsUrlRefresh(introVideo.getPublishedUrl())) {
-        try {
-          // Find associated asset metadata to regenerate URL
-          AssetMetadata assetMetadata =
-              assetMetadataRepository
-                  .findByPresentationIdAndAssetType(
-                      introVideo.getPresentation().getId(), AssetType.PRESENTATION_INTRO_VIDEO)
-                  .stream()
-                  .findFirst()
-                  .orElseThrow(
-                      () ->
-                          new RuntimeException(
-                              "No asset metadata found for intro video: " + introVideo.getId()));
-
+      try {
+        AssetMetadata assetMetadata = introVideo.getR2Asset();
+        if (assetMetadata != null) {
           String newUrl = r2AssetService.regeneratePresignedUrl(assetMetadata.getId());
-          introVideo.setPublishedUrl(newUrl);
-          introVideoRepository.save(introVideo);
           refreshedCount++;
           log.debug("Refreshed intro video URL for: {}", introVideo.getId());
-        } catch (Exception e) {
-          log.error("Failed to refresh intro video URL for: {}", introVideo.getId(), e);
+        } else {
+          log.warn("Intro video {} has no R2 asset metadata", introVideo.getId());
         }
+      } catch (Exception e) {
+        log.error("Failed to refresh intro video URL for: {}", introVideo.getId(), e);
       }
     }
 
@@ -157,23 +145,19 @@ public class PreCompositionAssetPublisher {
       }
     }
 
-    // Refresh avatar video URLs
+    // Refresh avatar video URLs - always regenerate for freshness
     for (AvatarVideo avatarVideo : discovery.avatarVideos) {
-      if (needsUrlRefresh(avatarVideo.getPublishedUrl())) {
-        try {
-          // Avatar videos store their R2 asset ID
-          if (avatarVideo.getR2AssetId() != null) {
-            String newUrl = r2AssetService.regeneratePresignedUrl(avatarVideo.getR2AssetId());
-            avatarVideo.setPublishedUrl(newUrl);
-            avatarVideoRepository.save(avatarVideo);
-            refreshedCount++;
-            log.debug("Refreshed avatar video URL for: {}", avatarVideo.getId());
-          } else {
-            log.warn("Avatar video {} has no R2 asset ID, cannot refresh URL", avatarVideo.getId());
-          }
-        } catch (Exception e) {
-          log.error("Failed to refresh avatar video URL for: {}", avatarVideo.getId(), e);
+      try {
+        AssetMetadata assetMetadata = avatarVideo.getR2Asset();
+        if (assetMetadata != null) {
+          String newUrl = r2AssetService.regeneratePresignedUrl(assetMetadata.getId());
+          refreshedCount++;
+          log.debug("Refreshed avatar video URL for: {}", avatarVideo.getId());
+        } else {
+          log.warn("Avatar video {} has no R2 asset metadata", avatarVideo.getId());
         }
+      } catch (Exception e) {
+        log.error("Failed to refresh avatar video URL for: {}", avatarVideo.getId(), e);
       }
     }
 
@@ -188,12 +172,18 @@ public class PreCompositionAssetPublisher {
 
     // Upload intro videos
     for (IntroVideo introVideo : discovery.introVideos) {
-      if (introVideo.getPublishedUrl() != null) {
+      AssetMetadata assetMetadata = introVideo.getR2Asset();
+      if (assetMetadata != null) {
         try {
-          String shotstackUrl =
-              shotstackAssetPublisher.uploadAsset(introVideo.getPublishedUrl(), "video");
-          // Cache the Shotstack URL for intro videos
-          shotstackAssetPublisher.cacheVideoUrl(introVideo.getId(), "intro", shotstackUrl);
+          // Get fresh R2 URL for upload
+          String r2Url = r2AssetService.regeneratePresignedUrl(assetMetadata.getId());
+          String shotstackUrl = shotstackAssetPublisher.uploadAsset(r2Url, "video");
+
+          // Store Shotstack URL in AssetMetadata
+          assetMetadata.setShotstackUrl(shotstackUrl);
+          assetMetadata.setShotstackUploadedAt(java.time.LocalDateTime.now());
+          assetMetadataRepository.save(assetMetadata);
+
           log.debug(
               "Uploaded intro video to Shotstack: {} -> {}", introVideo.getId(), shotstackUrl);
           uploadedCount++;
@@ -209,6 +199,12 @@ public class PreCompositionAssetPublisher {
         // Get fresh URL for upload to Shotstack
         String slideImageUrl = r2AssetService.regeneratePresignedUrl(slideImage.getId());
         String shotstackUrl = shotstackAssetPublisher.uploadAsset(slideImageUrl, "image");
+
+        // Store Shotstack URL in AssetMetadata
+        slideImage.setShotstackUrl(shotstackUrl);
+        slideImage.setShotstackUploadedAt(java.time.LocalDateTime.now());
+        assetMetadataRepository.save(slideImage);
+
         log.debug("Uploaded slide image to Shotstack: {} -> {}", slideImage.getId(), shotstackUrl);
         uploadedCount++;
       } catch (Exception e) {
@@ -218,12 +214,18 @@ public class PreCompositionAssetPublisher {
 
     // Upload avatar videos
     for (AvatarVideo avatarVideo : discovery.avatarVideos) {
-      if (avatarVideo.getPublishedUrl() != null) {
+      AssetMetadata assetMetadata = avatarVideo.getR2Asset();
+      if (assetMetadata != null) {
         try {
-          String shotstackUrl =
-              shotstackAssetPublisher.uploadAsset(avatarVideo.getPublishedUrl(), "video");
-          // Cache the Shotstack URL for avatar videos
-          shotstackAssetPublisher.cacheVideoUrl(avatarVideo.getId(), "avatar", shotstackUrl);
+          // Get fresh R2 URL for upload
+          String r2Url = r2AssetService.regeneratePresignedUrl(assetMetadata.getId());
+          String shotstackUrl = shotstackAssetPublisher.uploadAsset(r2Url, "video");
+
+          // Store Shotstack URL in AssetMetadata
+          assetMetadata.setShotstackUrl(shotstackUrl);
+          assetMetadata.setShotstackUploadedAt(java.time.LocalDateTime.now());
+          assetMetadataRepository.save(assetMetadata);
+
           log.debug(
               "Uploaded avatar video to Shotstack: {} -> {}", avatarVideo.getId(), shotstackUrl);
           uploadedCount++;
@@ -234,16 +236,6 @@ public class PreCompositionAssetPublisher {
     }
 
     log.info("Shotstack upload complete: {} assets uploaded", uploadedCount);
-  }
-
-  /** Checks if a presigned URL needs to be refreshed. */
-  private boolean needsUrlRefresh(String url) {
-    if (url == null || !url.contains("X-Amz-Expires")) {
-      return false; // Not a presigned URL
-    }
-
-    PresignedUrlValidator.UrlValidationResult validation = urlValidator.validateUrl(url);
-    return !validation.isValid();
   }
 
   /** Helper class to hold discovered assets. */

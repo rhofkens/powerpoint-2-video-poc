@@ -2,6 +2,7 @@ package ai.bluefields.ppt2video.service.intro;
 
 import ai.bluefields.ppt2video.dto.AssetDto;
 import ai.bluefields.ppt2video.dto.veo.VeoVideoStatus;
+import ai.bluefields.ppt2video.entity.AssetMetadata;
 import ai.bluefields.ppt2video.entity.AssetType;
 import ai.bluefields.ppt2video.entity.AvatarGenerationStatusType;
 import ai.bluefields.ppt2video.entity.IntroVideo;
@@ -240,9 +241,12 @@ public class IntroVideoMonitorService {
                 AssetType.PRESENTATION_INTRO_VIDEO,
                 true); // Force republish
 
-        // Update intro video with R2 URL
-        introVideo.setPublishedUrl(asset.getDownloadUrl());
-        introVideo.setR2Asset(assetMetadataRepository.findById(asset.getId()).orElse(null));
+        // Update intro video with R2 asset reference
+        AssetMetadata assetMetadata =
+            assetMetadataRepository
+                .findById(asset.getId())
+                .orElseThrow(() -> new RuntimeException("Failed to find created asset metadata"));
+        introVideo.setR2Asset(assetMetadata);
         introVideoRepository.save(introVideo);
 
         log.info("Successfully published intro video to R2: {}", asset.getDownloadUrl());

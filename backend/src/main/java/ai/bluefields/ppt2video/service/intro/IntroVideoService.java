@@ -16,6 +16,7 @@ import ai.bluefields.ppt2video.repository.DeckAnalysisRepository;
 import ai.bluefields.ppt2video.repository.IntroVideoRepository;
 import ai.bluefields.ppt2video.repository.PresentationRepository;
 import ai.bluefields.ppt2video.repository.SlideRepository;
+import ai.bluefields.ppt2video.service.R2AssetService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -44,6 +45,7 @@ public class IntroVideoService {
   private final VeoPromptBuilder veoPromptBuilder;
   private final VeoPromptLLMService veoPromptLLMService;
   private final IntroVideoMonitorService monitorService;
+  private final R2AssetService r2AssetService;
   private final ObjectMapper objectMapper;
 
   @Value("${google.veo.model:veo-3.0-fast-generate-001}")
@@ -283,8 +285,11 @@ public class IntroVideoService {
           .resolution(introVideo.getResolution())
           .durationSeconds(introVideo.getDurationSeconds())
           .googleVideoUrl(introVideo.getGoogleVideoUrl())
-          .publishedUrl(introVideo.getPublishedUrl())
-          .r2AssetId(introVideo.getR2AssetId())
+          .publishedUrl(
+              introVideo.getR2Asset() != null
+                  ? r2AssetService.regeneratePresignedUrl(introVideo.getR2Asset().getId())
+                  : null)
+          .r2AssetId(introVideo.getR2Asset() != null ? introVideo.getR2Asset().getId() : null)
           .errorMessage(introVideo.getErrorMessage())
           .startedAt(introVideo.getStartedAt())
           .completedAt(introVideo.getCompletedAt())
@@ -298,7 +303,10 @@ public class IntroVideoService {
           .id(introVideo.getId())
           .presentationId(introVideo.getPresentationId())
           .status(introVideo.getStatus())
-          .publishedUrl(introVideo.getPublishedUrl())
+          .publishedUrl(
+              introVideo.getR2Asset() != null
+                  ? r2AssetService.regeneratePresignedUrl(introVideo.getR2Asset().getId())
+                  : null)
           .errorMessage(introVideo.getErrorMessage())
           .createdAt(introVideo.getCreatedAt())
           .build();
