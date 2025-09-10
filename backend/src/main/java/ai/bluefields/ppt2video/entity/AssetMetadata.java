@@ -84,6 +84,16 @@ public class AssetMetadata {
   @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
 
+  // Shotstack-specific fields for when assets are uploaded to Shotstack
+  @Column(name = "shotstack_url", length = 1000)
+  private String shotstackUrl;
+
+  @Column(name = "shotstack_asset_id")
+  private String shotstackAssetId;
+
+  @Column(name = "shotstack_uploaded_at")
+  private LocalDateTime shotstackUploadedAt;
+
   @OneToMany(mappedBy = "assetMetadata", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
   @Builder.Default
   private List<PresignedUrl> presignedUrls = new ArrayList<>();

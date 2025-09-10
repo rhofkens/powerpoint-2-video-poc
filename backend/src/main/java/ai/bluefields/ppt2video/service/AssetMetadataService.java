@@ -137,6 +137,17 @@ public class AssetMetadataService {
   }
 
   /**
+   * Find asset by object key.
+   *
+   * @param objectKey the R2 object key
+   * @return optional asset metadata
+   */
+  @Transactional(readOnly = true)
+  public Optional<AssetMetadata> findByObjectKey(String objectKey) {
+    return assetMetadataRepository.findByObjectKey(objectKey);
+  }
+
+  /**
    * Get assets by presentation.
    *
    * @param presentationId the presentation ID

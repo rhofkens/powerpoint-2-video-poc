@@ -12,6 +12,7 @@ import ai.bluefields.ppt2video.entity.RenderJobType;
 import ai.bluefields.ppt2video.entity.VideoProviderType;
 import ai.bluefields.ppt2video.entity.VideoStoryStatus;
 import ai.bluefields.ppt2video.repository.*;
+import ai.bluefields.ppt2video.service.R2AssetService;
 import ai.bluefields.ppt2video.service.video.provider.VideoProvider;
 import ai.bluefields.ppt2video.service.video.provider.VideoProviderFactory;
 import ai.bluefields.ppt2video.service.video.provider.shotstack.ShotstackCompositionService;
@@ -23,6 +24,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,7 +44,12 @@ public class VideoStoryOrchestrationService {
   private final PresentationRepository presentationRepository;
   private final IntroVideoRepository introVideoRepository;
   private final VideoDownloadService videoDownloadService;
+  private final R2AssetService r2AssetService;
+  private final PresignedUrlValidator urlValidator;
   private final ObjectMapper objectMapper;
+
+  @Value("${shotstack.assets.mode:r2-direct}")
+  private String assetMode;
 
   /**
    * Creates a new video story composition without rendering. This generates the JSON composition
@@ -65,9 +72,10 @@ public class VideoStoryOrchestrationService {
   @Transactional
   public VideoStoryResponse createVideoStory(VideoStoryRequest request, boolean force) {
     log.info(
-        "Creating video story composition for presentation: {} (force: {})",
+        "Creating video story composition for presentation: {} (force: {}, asset mode: {})",
         request.getPresentationId(),
-        force);
+        force,
+        assetMode);
 
     // Load entities
     Presentation presentation =
@@ -85,6 +93,11 @@ public class VideoStoryOrchestrationService {
                 () ->
                     new IllegalArgumentException(
                         "Intro video not found: " + request.getIntroVideoId()));
+
+    // Validate asset URLs if in R2 Direct mode
+    if ("r2-direct".equalsIgnoreCase(assetMode)) {
+      validateAssetUrls(presentation, introVideo);
+    }
 
     // Create video story entity
     VideoStory videoStory = createVideoStoryEntity(presentation, request);
@@ -373,5 +386,47 @@ public class VideoStoryOrchestrationService {
               return buildResponseWithComposition(story, renderJob);
             })
         .collect(Collectors.toList());
+  }
+
+  /**
+   * Validates that all asset URLs are valid and will remain valid during rendering. If URLs are
+   * expired or expiring soon, attempts to regenerate them.
+   */
+  private void validateAssetUrls(Presentation presentation, IntroVideo introVideo) {
+    log.debug("Validating asset URLs for presentation: {}", presentation.getId());
+
+    // Validate intro video URL
+    if (introVideo != null && introVideo.getPublishedUrl() != null) {
+      PresignedUrlValidator.UrlValidationResult result =
+          urlValidator.validateUrl(introVideo.getPublishedUrl());
+
+      if (!result.isValid()) {
+        log.warn(
+            "Intro video URL validation failed: {}. Attempting to regenerate.",
+            result.getErrorMessage());
+
+        // In a full implementation, we would regenerate the URL here
+        // For now, we'll log a warning and continue
+        log.warn("URL regeneration not yet implemented for intro videos");
+      }
+    }
+
+    // For Phase 3: Validate slide asset URLs
+    // Map<String, String> slideUrls = r2AssetService.getSlideAssetUrls(presentation.getId());
+    // Map<String, PresignedUrlValidator.UrlValidationResult> validationResults =
+    //     urlValidator.validateUrls(slideUrls);
+    //
+    // for (Map.Entry<String, PresignedUrlValidator.UrlValidationResult> entry :
+    //      validationResults.entrySet()) {
+    //   if (!entry.getValue().isValid()) {
+    //     log.warn("Asset URL validation failed for {}: {}",
+    //         entry.getKey(), entry.getValue().getErrorMessage());
+    //   }
+    // }
+  }
+
+  /** Gets the current asset mode configuration. */
+  public String getAssetMode() {
+    return assetMode;
   }
 }

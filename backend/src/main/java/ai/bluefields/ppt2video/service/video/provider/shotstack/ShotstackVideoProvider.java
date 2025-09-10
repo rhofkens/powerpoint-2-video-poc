@@ -34,6 +34,7 @@ public class ShotstackVideoProvider implements VideoProvider {
   private boolean mockMode;
 
   private RestClient restClient;
+  private RestClient ingestClient;
 
   @Override
   public VideoProviderType getProviderType() {
@@ -52,14 +53,14 @@ public class ShotstackVideoProvider implements VideoProvider {
 
   @Override
   public AssetUploadResult uploadAsset(AssetUploadRequest request) {
-    log.info("Uploading asset to Shotstack: {}", request.getFilename());
+    log.info("Uploading asset to Shotstack Ingest API: {}", request.getFilename());
 
     if (mockMode) {
       return mockAssetUpload(request);
     }
 
     try {
-      RestClient client = getRestClient();
+      RestClient client = getIngestClient();
 
       Map<String, Object> uploadRequest = Map.of("url", request.getSourceUrl());
 
@@ -72,15 +73,20 @@ public class ShotstackVideoProvider implements VideoProvider {
               .retrieve()
               .body(Map.class);
 
-      String assetId = (String) response.get("id");
-      String assetUrl =
-          String.format(
-              "%s/assets/sources/%s", shotstackConfig.getApi().getActiveBaseUrl(), assetId);
+      // Parse queued response: { data: { type: "source", id: "source-id" } }
+      Map<String, Object> responseData = (Map<String, Object>) response.get("data");
+      String sourceId = (String) responseData.get("id");
+
+      log.info("Source queued with ID: {}", sourceId);
+
+      // Return with queued status - actual URL will be available after polling
+      // For now, return a placeholder URL that includes the source ID
+      String placeholderUrl = String.format("shotstack://source/%s", sourceId);
 
       return AssetUploadResult.builder()
-          .providerAssetId(assetId)
-          .providerUrl(assetUrl)
-          .status("uploaded")
+          .providerAssetId(sourceId)
+          .providerUrl(placeholderUrl)
+          .status("queued")
           .uploadedAt(LocalDateTime.now())
           .expiresAt(LocalDateTime.now().plusDays(7))
           .build();
@@ -251,18 +257,15 @@ public class ShotstackVideoProvider implements VideoProvider {
 
   private RestClient getRestClient() {
     if (restClient == null) {
-      // Use the active base URL which already includes the correct endpoint
-      String apiUrl = shotstackConfig.getApi().getActiveBaseUrl();
-      // For Shotstack, we need to append the environment to the base URL
+      // Build Edit API URL - Edit API is at /edit/v1 or /edit/stage
+      String apiUrl = "https://api.shotstack.io";
       if ("production".equalsIgnoreCase(shotstackConfig.getApi().getEnvironment())) {
-        apiUrl = apiUrl + "/v1";
+        apiUrl = apiUrl + "/edit/v1";
       } else {
-        apiUrl = apiUrl + "/stage";
+        apiUrl = apiUrl + "/edit/stage";
       }
 
-      // Use the active API key based on environment
       String apiKey = shotstackConfig.getApi().getActiveApiKey();
-
       if (apiKey == null || apiKey.isEmpty()) {
         throw new IllegalStateException(
             "No Shotstack API key configured for environment: "
@@ -278,11 +281,44 @@ public class ShotstackVideoProvider implements VideoProvider {
               .build();
 
       log.info(
-          "Shotstack REST client initialized for {} environment at {}",
+          "Shotstack Edit API client initialized for {} environment at {}",
           shotstackConfig.getApi().getEnvironment(),
           apiUrl);
     }
     return restClient;
+  }
+
+  private RestClient getIngestClient() {
+    if (ingestClient == null) {
+      // Build Ingest API URL - separate from Edit API
+      String apiUrl = "https://api.shotstack.io";
+      if ("production".equalsIgnoreCase(shotstackConfig.getApi().getEnvironment())) {
+        apiUrl = apiUrl + "/ingest/v1";
+      } else {
+        apiUrl = apiUrl + "/ingest/stage";
+      }
+
+      String apiKey = shotstackConfig.getApi().getActiveApiKey();
+      if (apiKey == null || apiKey.isEmpty()) {
+        throw new IllegalStateException(
+            "No Shotstack API key configured for environment: "
+                + shotstackConfig.getApi().getEnvironment());
+      }
+
+      ingestClient =
+          restClientBuilder
+              .baseUrl(apiUrl)
+              .defaultHeader("x-api-key", apiKey)
+              .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+              .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+              .build();
+
+      log.info(
+          "Shotstack Ingest API client initialized for {} environment at {}",
+          shotstackConfig.getApi().getEnvironment(),
+          apiUrl);
+    }
+    return ingestClient;
   }
 
   private OutputSettings buildDefaultOutputSettings() {

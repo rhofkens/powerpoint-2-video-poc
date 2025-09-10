@@ -70,6 +70,14 @@ public interface AssetMetadataRepository extends JpaRepository<AssetMetadata, UU
   Optional<AssetMetadata> findByBucketNameAndObjectKey(String bucketName, String objectKey);
 
   /**
+   * Find asset by object key.
+   *
+   * @param objectKey the object key
+   * @return optional asset metadata
+   */
+  Optional<AssetMetadata> findByObjectKey(String objectKey);
+
+  /**
    * Find assets by upload status.
    *
    * @param uploadStatus the upload status
@@ -147,4 +155,33 @@ public interface AssetMetadataRepository extends JpaRepository<AssetMetadata, UU
    */
   @Query("SELECT a FROM AssetMetadata a WHERE a.slide.id IN :slideIds")
   List<AssetMetadata> findBySlideIdIn(@Param("slideIds") List<UUID> slideIds);
+
+  /**
+   * Count assets with Shotstack URL.
+   *
+   * @return count of assets with Shotstack URL
+   */
+  @Query("SELECT COUNT(a) FROM AssetMetadata a WHERE a.shotstackUrl IS NOT NULL")
+  Long countByShotstackUrlNotNull();
+
+  /**
+   * Clear Shotstack URLs for a presentation's assets.
+   *
+   * @param presentationId the presentation ID
+   * @return number of assets updated
+   */
+  @Modifying
+  @Query(
+      "UPDATE AssetMetadata a SET a.shotstackUrl = NULL, a.shotstackAssetId = NULL, a.shotstackUploadedAt = NULL WHERE a.presentation.id = :presentationId AND a.shotstackUrl IS NOT NULL")
+  int clearShotstackUrls(@Param("presentationId") UUID presentationId);
+
+  /**
+   * Clear all Shotstack URLs.
+   *
+   * @return number of assets updated
+   */
+  @Modifying
+  @Query(
+      "UPDATE AssetMetadata a SET a.shotstackUrl = NULL, a.shotstackAssetId = NULL, a.shotstackUploadedAt = NULL WHERE a.shotstackUrl IS NOT NULL")
+  int clearAllShotstackUrls();
 }

@@ -553,23 +553,69 @@ CREATE INDEX idx_webhook_events_processed ON webhook_events(processed);
 - **Output**: Single MP4 file of intro section
 - **UI**: Minimal modal interface for testing composition generation
 
-### Phase 3: Full Presentation Composition (Week 3-4)
-**Objective**: Extend to full presentation with slides and avatars
+### Phase 3: Full Presentation Composition with Dual-Mode Asset Handling (Week 3-4)
+**Objective**: Extend to full presentation with slides and avatars using flexible asset handling strategy
+
+#### Strategic Asset Handling Approach
+
+Based on learnings from Phase 2, we implement a dual-mode asset handling system that balances cost-efficiency with development/testing needs:
+
+**Key Insight**: R2 presigned URLs work directly in Shotstack compositions as long as they remain valid during rendering. However, R2-hosted assets cannot be previewed in the Shotstack Studio editor, which is crucial for testing and debugging composition layouts.
+
+**Dual-Mode Architecture**:
+
+1. **R2 Direct Mode** (Production Default)
+   - Assets remain in R2 with presigned URLs used directly in compositions
+   - Before composition submission, validate all asset URLs are still valid (not expired)
+   - Regenerate presigned URLs if needed (typically 3-hour validity window)
+   - Zero asset duplication costs
+   - No Shotstack storage fees
+   - Limitation: No preview capability in Shotstack Studio
+
+2. **Shotstack Upload Mode** (Development/Testing)
+   - Assets uploaded to Shotstack's ingestion endpoint
+   - Shotstack-hosted URLs used in compositions
+   - Full preview capability in Shotstack Studio editor
+   - Enables visual debugging of compositions
+   - Higher cost due to asset storage in Shotstack
+   - Assets auto-deleted after configurable retention period
+
+#### Configuration-Driven Selection
+
+The system uses configuration flags to determine asset handling mode:
+- Global default mode setting
+- Per-render override capability
+- Environment-specific defaults (dev vs prod)
+- Asset type-specific strategies (e.g., always upload lower-thirds to Shotstack)
+
+#### URL Validation and Management
+
+**Presigned URL Lifecycle**:
+- Track URL generation time and expiry for each asset
+- Implement URL freshness check before composition submission
+- Batch regeneration of expired URLs
+- Maintain URL cache to minimize R2 API calls
+- Fallback to Shotstack upload if URL regeneration fails
 
 #### Tasks:
-1. Extend ShotstackCompositionBuilder for full timeline
-2. Implement multi-asset upload (slides, avatars, audio)
-3. Add slide transitions and timing logic
-4. Build complete VideoStoryOrchestrationService
-5. Implement asset publishing workflow for all assets
-6. Add render job management with database tracking
+1. Implement configuration system for asset mode selection
+2. Create ShotstackAssetPublisher service for upload mode
+3. Build URL validation and regeneration logic
+4. Extend ShotstackCompositionBuilder for full timeline with both modes
+5. Add intelligent asset URL management in composition service
+6. Implement slide transitions and timing logic
+7. Create asset mode decision engine based on configuration
+8. Add comprehensive error handling for URL expiry scenarios
 
 #### Deliverables:
-- Full timeline composition builder
-- Multi-asset upload and management
-- Complete orchestration service
-- Database-backed job tracking
-- Full presentation video output
+- Dual-mode asset handling system with configuration
+- ShotstackAssetPublisher for development mode
+- URL validation and regeneration service
+- Full timeline composition builder supporting both modes
+- Intelligent asset URL management
+- Complete orchestration service with mode selection
+- Database tracking of asset URLs and expiry
+- Full presentation video output with cost optimization
 
 ### Phase 4: API and Frontend Integration (Week 4-5)
 **Objective**: Create REST endpoints and frontend components

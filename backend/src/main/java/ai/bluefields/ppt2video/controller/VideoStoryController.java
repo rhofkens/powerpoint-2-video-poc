@@ -2,6 +2,7 @@ package ai.bluefields.ppt2video.controller;
 
 import ai.bluefields.ppt2video.dto.video.VideoStoryRequest;
 import ai.bluefields.ppt2video.dto.video.VideoStoryResponse;
+import ai.bluefields.ppt2video.service.video.ShotstackAssetPublisher;
 import ai.bluefields.ppt2video.service.video.VideoStoryOrchestrationService;
 import java.util.HashMap;
 import java.util.List;
@@ -9,6 +10,7 @@ import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +27,10 @@ import org.springframework.web.bind.annotation.*;
 public class VideoStoryController {
 
   private final VideoStoryOrchestrationService orchestrationService;
+  private final ShotstackAssetPublisher shotstackAssetPublisher;
+
+  @Value("${shotstack.assets.mode:r2-direct}")
+  private String assetMode;
 
   /**
    * Creates a new video story composition without rendering. Generates the JSON composition for
@@ -180,6 +186,46 @@ public class VideoStoryController {
     } catch (Exception e) {
       log.error("Failed to get video stories for presentation", e);
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+  }
+
+  /**
+   * Refreshes Shotstack assets for a presentation (forces re-upload). Only available when
+   * shotstack-upload mode is enabled.
+   *
+   * @param presentationId The presentation ID
+   * @return Number of assets cleared for re-upload
+   */
+  @PostMapping("/presentations/{presentationId}/refresh-shotstack-assets")
+  public ResponseEntity<Map<String, Object>> refreshShotstackAssets(
+      @PathVariable UUID presentationId) {
+    log.info("Refreshing Shotstack assets for presentation: {}", presentationId);
+
+    // Check if shotstack-upload mode is enabled
+    if (!"shotstack-upload".equalsIgnoreCase(assetMode)) {
+      log.warn("Refresh assets called but asset mode is: {}", assetMode);
+      Map<String, Object> response = new HashMap<>();
+      response.put("error", "Shotstack asset refresh is only available in shotstack-upload mode");
+      response.put("currentMode", assetMode);
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    try {
+      int refreshedCount = shotstackAssetPublisher.refreshAllAssets(presentationId);
+
+      Map<String, Object> response = new HashMap<>();
+      response.put("message", "Shotstack asset URLs cleared successfully");
+      response.put("assetsCleared", refreshedCount);
+      response.put("presentationId", presentationId.toString());
+
+      log.info("Cleared {} Shotstack URLs for presentation: {}", refreshedCount, presentationId);
+
+      return ResponseEntity.ok(response);
+    } catch (Exception e) {
+      log.error("Failed to refresh Shotstack assets", e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("error", "Failed to refresh assets: " + e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
   }
 

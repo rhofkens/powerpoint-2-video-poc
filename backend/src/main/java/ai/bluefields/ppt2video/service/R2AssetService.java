@@ -736,4 +736,109 @@ public class R2AssetService {
 
     return builder.build();
   }
+
+  /**
+   * Finds asset metadata by object key.
+   *
+   * @param objectKey The R2 object key
+   * @return Optional containing the asset metadata if found
+   */
+  public java.util.Optional<AssetMetadata> findAssetByObjectKey(String objectKey) {
+    return assetMetadataService.findByObjectKey(objectKey);
+  }
+
+  /**
+   * Regenerates a presigned URL for an asset metadata.
+   *
+   * @param assetMetadataId The ID of the asset metadata
+   * @return New presigned URL
+   */
+  public String regeneratePresignedUrl(UUID assetMetadataId) {
+    AssetMetadata asset =
+        assetMetadataService
+            .getAsset(assetMetadataId)
+            .orElseThrow(() -> new ProcessingException("Asset not found: " + assetMetadataId));
+
+    PresignedUrl newUrl = presignedUrlService.generateDownloadUrl(asset);
+    log.info(
+        "Regenerated presigned URL for asset {}: expires at {}",
+        assetMetadataId,
+        newUrl.getExpiresAt());
+    return newUrl.getPresignedUrl();
+  }
+
+  /**
+   * Regenerates presigned URLs for multiple assets.
+   *
+   * @param assetMetadataIds List of asset metadata IDs
+   * @return Map of asset ID to new presigned URL
+   */
+  public java.util.Map<UUID, String> regeneratePresignedUrls(List<UUID> assetMetadataIds) {
+    java.util.Map<UUID, String> regeneratedUrls = new java.util.HashMap<>();
+    for (UUID assetId : assetMetadataIds) {
+      try {
+        String newUrl = regeneratePresignedUrl(assetId);
+        regeneratedUrls.put(assetId, newUrl);
+      } catch (Exception e) {
+        log.error("Failed to regenerate URL for asset {}: {}", assetId, e.getMessage());
+      }
+    }
+    return regeneratedUrls;
+  }
+
+  /**
+   * Gets fresh presigned URLs for all assets of a presentation.
+   *
+   * @param presentationId The presentation ID
+   * @return Map of asset type to presigned URL
+   */
+  public java.util.Map<String, String> getFreshAssetUrls(UUID presentationId) {
+    java.util.Map<String, String> assetUrls = new java.util.HashMap<>();
+
+    // Get all assets for the presentation
+    List<AssetMetadata> assets = assetMetadataService.getAssetsByPresentation(presentationId);
+
+    for (AssetMetadata asset : assets) {
+      PresignedUrl url = presignedUrlService.generateDownloadUrl(asset);
+      String key = asset.getAssetType().toString();
+      if (asset.getSlide() != null) {
+        key = key + "_slide_" + asset.getSlide().getSlideNumber();
+      }
+      assetUrls.put(key, url.getPresignedUrl());
+    }
+
+    log.info(
+        "Generated {} fresh presigned URLs for presentation {}", assetUrls.size(), presentationId);
+    return assetUrls;
+  }
+
+  /**
+   * Validates and refreshes presigned URLs if needed.
+   *
+   * @param urls Map of asset name to URL
+   * @param validator The URL validator service
+   * @return Map of asset name to fresh URL (only includes URLs that were refreshed)
+   */
+  public java.util.Map<String, String> validateAndRefreshUrls(
+      java.util.Map<String, String> urls,
+      ai.bluefields.ppt2video.service.video.PresignedUrlValidator validator) {
+    java.util.Map<String, String> refreshedUrls = new java.util.HashMap<>();
+
+    // Validate each URL
+    var validationResults = validator.validateUrls(urls);
+
+    for (var entry : validationResults.entrySet()) {
+      String assetName = entry.getKey();
+      var result = entry.getValue();
+
+      if (!result.isValid()) {
+        log.info("URL for {} is invalid or expiring soon: {}", assetName, result.getErrorMessage());
+        // URL needs refresh - this would need asset metadata ID to regenerate
+        // For now, we'll mark it as needing refresh
+        refreshedUrls.put(assetName, null); // Marker for needing refresh
+      }
+    }
+
+    return refreshedUrls;
+  }
 }

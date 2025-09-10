@@ -30,7 +30,8 @@ import {
   Eye,
   RefreshCw,
   Clipboard,
-  Film
+  Film,
+  RefreshCcw
 } from "lucide-react";
 
 interface VideoStoryModalProps {
@@ -57,6 +58,8 @@ export function VideoStoryModal({
   const [jsonCopied, setJsonCopied] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
+  const [isRefreshingAssets, setIsRefreshingAssets] = useState(false);
+  const [showRefreshButton, setShowRefreshButton] = useState(true);
   const { toast } = useToast();
 
   // Reset state when modal opens
@@ -70,6 +73,8 @@ export function VideoStoryModal({
       setActiveTab("preview");
       setVideoUrl(null);
       setIsLoadingVideo(false);
+      setIsRefreshingAssets(false);
+      setShowRefreshButton(true);
       
       // Check for existing video story or create new one
       if (introVideo) {
@@ -283,6 +288,44 @@ export function VideoStoryModal({
       link.href = videoUrl;
       link.download = `${presentationTitle}-video-story.mp4`;
       link.click();
+    }
+  };
+
+  const handleRefreshAssets = async () => {
+    setIsRefreshingAssets(true);
+    setError(null);
+    
+    try {
+      const response = await apiService.axiosInstance.post(
+        `/video-stories/presentations/${presentationId}/refresh-shotstack-assets`
+      );
+      
+      toast({
+        title: "Assets Refreshed",
+        description: `${response.data.assetsCleared} Shotstack asset URLs cleared. They will be re-uploaded on next use.`
+      });
+      
+      // Regenerate the video story to use the new assets
+      if (videoStory) {
+        await handleCreateVideoStory(true);
+      }
+    } catch (err) {
+      const error = err as { response?: { status?: number; data?: { currentMode?: string; error?: string } } };
+      // If the error indicates wrong mode, hide the button
+      if (error.response?.status === 400 && error.response?.data?.currentMode) {
+        setShowRefreshButton(false);
+        // Don't show error toast for mode mismatch
+      } else {
+        const errorMessage = error.response?.data?.error || "Failed to refresh assets";
+        setError(errorMessage);
+        toast({
+          title: "Refresh Failed",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      }
+    } finally {
+      setIsRefreshingAssets(false);
     }
   };
 
@@ -557,6 +600,26 @@ export function VideoStoryModal({
           </Button>
           {videoStory && (
             <>
+              {showRefreshButton && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleRefreshAssets} 
+                  disabled={isCreating || isRendering || isRefreshingAssets}
+                  title="Clear cached Shotstack URLs and force re-upload of all assets"
+                >
+                  {isRefreshingAssets ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Refreshing Assets...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCcw className="h-4 w-4 mr-2" />
+                      Refresh Assets
+                    </>
+                  )}
+                </Button>
+              )}
               <Button 
                 variant="outline" 
                 onClick={() => handleCreateVideoStory(true)} 
