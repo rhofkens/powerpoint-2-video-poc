@@ -48,6 +48,12 @@ public class DeckAnalysis {
   @Column(name = "tone")
   private String tone;
 
+  @Column(name = "presentation_title", length = 500)
+  private String presentationTitle;
+
+  @Column(name = "presentation_author", length = 500)
+  private String presentationAuthor;
+
   @Column(name = "analysis_metadata", columnDefinition = "JSONB")
   @JdbcTypeCode(SqlTypes.JSON)
   private String analysisMetadata;

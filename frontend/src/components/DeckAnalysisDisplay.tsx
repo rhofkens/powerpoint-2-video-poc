@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DeckAnalysis } from "@/types/presentation";
-import { Brain, Target, Lightbulb, Users } from "lucide-react";
+import { Brain, Target, Lightbulb, Users, FileText, User } from "lucide-react";
 
 interface DeckAnalysisDisplayProps {
   analysis: DeckAnalysis;
@@ -23,6 +23,30 @@ export function DeckAnalysisDisplay({ analysis }: DeckAnalysisDisplayProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Extracted Metadata - Title and Author */}
+        {(analysis.presentationTitle || analysis.presentationAuthor) && (
+          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+            {analysis.presentationTitle && (
+              <div className="flex items-start gap-3">
+                <FileText className="h-4 w-4 mt-0.5 text-primary" />
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Presentation Title</p>
+                  <p className="text-sm font-semibold">{analysis.presentationTitle}</p>
+                </div>
+              </div>
+            )}
+            {analysis.presentationAuthor && (
+              <div className="flex items-start gap-3">
+                <User className="h-4 w-4 mt-0.5 text-primary" />
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Author</p>
+                  <p className="text-sm">{analysis.presentationAuthor}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Overall Story */}
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium">

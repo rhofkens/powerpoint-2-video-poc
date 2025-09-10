@@ -91,13 +91,24 @@ public class ShotstackCompositionService {
     List<ObjectNode> tracks = new ArrayList<>();
 
     // Track 1: Title text overlay (top layer)
-    tracks.add(buildTitleTrack(presentation.getTitle()));
-
-    // Track 2: Subtitle text overlay (using target audience from deck analysis if available)
-    String subtitle = "A Professional Presentation";
+    // Use extracted title from deck analysis, fallback to cleaned filename
+    String displayTitle = presentation.getTitle(); // Default to filename
     if (presentation.getDeckAnalysis() != null
-        && presentation.getDeckAnalysis().getTargetAudience() != null) {
-      subtitle = "For " + presentation.getDeckAnalysis().getTargetAudience();
+        && presentation.getDeckAnalysis().getPresentationTitle() != null
+        && !presentation.getDeckAnalysis().getPresentationTitle().isEmpty()) {
+      displayTitle = presentation.getDeckAnalysis().getPresentationTitle();
+    } else {
+      // Fallback: clean up the filename
+      displayTitle = cleanupFilename(presentation.getTitle());
+    }
+    tracks.add(buildTitleTrack(displayTitle));
+
+    // Track 2: Subtitle text overlay (author or company from deck analysis)
+    String subtitle = "A Professional Presentation"; // Default
+    if (presentation.getDeckAnalysis() != null
+        && presentation.getDeckAnalysis().getPresentationAuthor() != null
+        && !presentation.getDeckAnalysis().getPresentationAuthor().isEmpty()) {
+      subtitle = presentation.getDeckAnalysis().getPresentationAuthor();
     }
     tracks.add(buildSubtitleTrack(subtitle));
 
@@ -440,9 +451,7 @@ public class ShotstackCompositionService {
     ObjectNode asset = objectMapper.createObjectNode();
 
     asset.put("type", "html");
-    // TODO: TEMP FIX - Replace hardcoded "Consulting Proposal" with dynamic title
-    // Original: asset.put("html", "<p data-html-type=\"text\">" + escapeHtml(title) + "</p>");
-    asset.put("html", "<p data-html-type=\"text\">Consulting Proposal</p>");
+    asset.put("html", "<p data-html-type=\"text\">" + escapeHtml(title) + "</p>");
     asset.put(
         "css",
         "p { color: #ffffff; font-size: 39px; font-family: 'Clear Sans', sans-serif; text-align: center; }");
@@ -478,9 +487,7 @@ public class ShotstackCompositionService {
     ObjectNode asset = objectMapper.createObjectNode();
 
     asset.put("type", "html");
-    // TODO: TEMP FIX - Replace hardcoded "By Roeland Hofkens" with dynamic subtitle/author
-    // Original: asset.put("html", "<p data-html-type=\"text\">" + escapeHtml(subtitle) + "</p>");
-    asset.put("html", "<p data-html-type=\"text\">By Roeland Hofkens</p>");
+    asset.put("html", "<p data-html-type=\"text\">" + escapeHtml(subtitle) + "</p>");
     asset.put(
         "css",
         "p { color: #282828; font-size: 26px; font-family: 'Clear Sans', sans-serif; text-align: center; }");
@@ -628,6 +635,39 @@ public class ShotstackCompositionService {
         .replace(">", "&gt;")
         .replace("\"", "&quot;")
         .replace("'", "&#39;");
+  }
+
+  /**
+   * Cleans up a filename-based title to make it more presentable. Converts
+   * "05052025-tembi-consulting-proposal" to "Tembi Consulting Proposal"
+   */
+  private String cleanupFilename(String filename) {
+    if (filename == null || filename.isEmpty()) {
+      return "Presentation";
+    }
+
+    // Remove date prefix (8 digits followed by dash)
+    String cleaned = filename.replaceFirst("^\\d{8}-", "");
+
+    // Replace hyphens and underscores with spaces
+    cleaned = cleaned.replace("-", " ").replace("_", " ");
+
+    // Capitalize each word
+    String[] words = cleaned.split("\\s+");
+    StringBuilder result = new StringBuilder();
+    for (String word : words) {
+      if (!word.isEmpty()) {
+        if (result.length() > 0) {
+          result.append(" ");
+        }
+        result.append(word.substring(0, 1).toUpperCase());
+        if (word.length() > 1) {
+          result.append(word.substring(1).toLowerCase());
+        }
+      }
+    }
+
+    return result.toString();
   }
 
   /** Checks if a Shotstack URL is expired based on upload timestamp. */

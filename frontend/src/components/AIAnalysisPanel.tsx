@@ -149,11 +149,15 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
   const handleAnalyzeDeck = async () => {
     setIsAnalyzingDeck(true);
     try {
-      const analysis = await apiService.analyzeDeck(presentationId);
+      // Force regeneration if deck analysis already exists
+      const forceRegenerate = deckAnalysis !== null;
+      const analysis = await apiService.analyzeDeck(presentationId, forceRegenerate);
       useAnalysisStore.getState().setDeckAnalysis(presentationId, analysis);
       toast({
         title: "Deck Analysis Complete",
-        description: "AI has successfully analyzed your presentation deck."
+        description: forceRegenerate 
+          ? "AI has successfully regenerated the presentation analysis."
+          : "AI has successfully analyzed your presentation deck."
       });
     } catch (error) {
       console.error('Failed to analyze deck:', error);
@@ -367,7 +371,7 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                 ) : (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    Analyze Deck
+                    {deckAnalysis ? 'Regenerate Analysis' : 'Analyze Deck'}
                   </>
                 )}
               </Button>

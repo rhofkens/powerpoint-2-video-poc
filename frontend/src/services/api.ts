@@ -274,11 +274,12 @@ class ApiService {
    * Triggers AI analysis of an entire presentation deck.
    * 
    * @param presentationId - The UUID of the presentation
+   * @param force - If true, regenerate analysis even if it already exists
    * @returns Promise resolving to deck analysis result
    */
-  async analyzeDeck(presentationId: string): Promise<DeckAnalysis> {
+  async analyzeDeck(presentationId: string, force: boolean = false): Promise<DeckAnalysis> {
     const response = await this.axiosInstance.post<{ success: boolean; data: DeckAnalysis; message: string }>(
-      `/presentations/${presentationId}/analyze-deck`,
+      `/presentations/${presentationId}/analyze-deck${force ? '?force=true' : ''}`,
       {},
       { timeout: 90000 } // 90 seconds timeout for deck analysis
     );

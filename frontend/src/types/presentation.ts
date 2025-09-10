@@ -251,6 +251,10 @@ export interface ReRenderRequest {
 export interface DeckAnalysis {
   /** Unique identifier (UUID) */
   id: string;
+  /** Extracted presentation title from first slide */
+  presentationTitle?: string;
+  /** Extracted author or company name */
+  presentationAuthor?: string;
   /** Overall story arc and message */
   overallStory: string;
   /** Communication intent and goals */

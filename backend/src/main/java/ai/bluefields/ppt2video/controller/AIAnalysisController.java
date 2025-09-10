@@ -59,15 +59,17 @@ public class AIAnalysisController {
    * Trigger deck analysis for a presentation.
    *
    * @param presentationId The presentation ID
+   * @param force If true, regenerate analysis even if it already exists
    * @return The deck analysis result
    */
   @PostMapping("/presentations/{id}/analyze-deck")
   public ResponseEntity<ApiResponse<DeckAnalysis>> analyzeDeck(
-      @PathVariable("id") UUID presentationId) {
-    log.info("Received request to analyze deck: {}", presentationId);
+      @PathVariable("id") UUID presentationId,
+      @RequestParam(value = "force", defaultValue = "false") boolean force) {
+    log.info("Received request to analyze deck: {} (force: {})", presentationId, force);
 
     try {
-      DeckAnalysis analysis = deckAnalysisService.analyzeDeck(presentationId);
+      DeckAnalysis analysis = deckAnalysisService.analyzeDeck(presentationId, force);
       return ResponseEntity.ok(
           ApiResponse.<DeckAnalysis>builder()
               .success(true)

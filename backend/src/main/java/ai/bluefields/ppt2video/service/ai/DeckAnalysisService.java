@@ -42,6 +42,18 @@ public class DeckAnalysisService {
    */
   @Transactional
   public DeckAnalysis analyzeDeck(UUID presentationId) {
+    return analyzeDeck(presentationId, false);
+  }
+
+  /**
+   * Analyze an entire presentation deck and store the results.
+   *
+   * @param presentationId The ID of the presentation to analyze
+   * @param force If true, regenerate analysis even if it already exists
+   * @return The created or updated DeckAnalysis entity
+   */
+  @Transactional
+  public DeckAnalysis analyzeDeck(UUID presentationId, boolean force) {
     if (!deckAnalysisEnabled) {
       throw new IllegalStateException("Deck analysis is disabled");
     }
@@ -56,9 +68,32 @@ public class DeckAnalysisService {
                 () -> new IllegalArgumentException("Presentation not found: " + presentationId));
 
     // Check if analysis already exists
-    if (presentation.getDeckAnalysis() != null) {
+    if (presentation.getDeckAnalysis() != null && !force) {
       log.info("Deck analysis already exists for presentation: {}", presentationId);
       return presentation.getDeckAnalysis();
+    }
+
+    // If forcing regeneration, delete existing analysis
+    if (presentation.getDeckAnalysis() != null && force) {
+      log.info("Force regenerating deck analysis for presentation: {}", presentationId);
+      DeckAnalysis existingAnalysis = presentation.getDeckAnalysis();
+
+      // First, break the relationship
+      presentation.setDeckAnalysis(null);
+      presentationRepository.saveAndFlush(presentation);
+
+      // Then delete the analysis
+      deckAnalysisRepository.delete(existingAnalysis);
+      deckAnalysisRepository.flush();
+
+      log.info("Deleted existing deck analysis for presentation: {}", presentationId);
+
+      // Refresh the presentation entity to ensure clean state
+      presentation =
+          presentationRepository
+              .findById(presentationId)
+              .orElseThrow(
+                  () -> new IllegalArgumentException("Presentation not found: " + presentationId));
     }
 
     // Update status
@@ -117,14 +152,26 @@ public class DeckAnalysisService {
     String systemPrompt =
         """
         You are an expert presentation analyst. Analyze the provided PowerPoint presentation data
-        and extract the overall story arc, communication intent, key themes, target audience, and tone.
+        and extract key metadata and insights.
 
         Focus on understanding:
-        1. The main message and story flow across all slides
-        2. The intended communication goals and objectives
-        3. Key themes and topics that recur throughout the presentation
-        4. The likely target audience based on content and language
-        5. The overall tone (professional, casual, educational, persuasive, etc.)
+        1. The actual presentation title (usually the largest/main text on the first slide)
+           - Look for the main heading on the first slide
+           - This is typically the largest text element
+           - Avoid using filenames or technical identifiers
+           - Create a clean, professional title suitable for display
+
+        2. The author or company name (often found on the first slide)
+           - Look for author name, company name, or "Presented by" text on the first slide
+           - Check speaker notes for author information
+           - If multiple authors, list the primary one
+           - Format as "By [Name]" or "By [Company Name]"
+
+        3. The main message and story flow across all slides
+        4. The intended communication goals and objectives
+        5. Key themes and topics that recur throughout the presentation
+        6. The likely target audience based on content and language
+        7. The overall tone (professional, casual, educational, persuasive, etc.)
 
         Provide a comprehensive analysis that helps understand the presentation's purpose and effectiveness.
         """;
@@ -138,6 +185,8 @@ public class DeckAnalysisService {
 
         Respond with a JSON object containing:
         {
+          "presentationTitle": "The actual presentation title from the first slide",
+          "presentationAuthor": "Author name or company, formatted as 'By [Name]' or 'By [Company]'",
           "overallStory": "A 2-3 paragraph summary of the presentation's story arc and main message",
           "communicationIntent": "The primary communication goals and objectives",
           "keyThemes": ["theme1", "theme2", "theme3"],
@@ -145,13 +194,18 @@ public class DeckAnalysisService {
           "tone": "The overall tone of the presentation (max 400 characters)"
         }
 
-        IMPORTANT: Keep targetAudience and tone fields under 400 characters each.
+        IMPORTANT:
+        - Keep targetAudience and tone fields under 400 characters each
+        - Keep presentationTitle under 200 characters
+        - Keep presentationAuthor under 100 characters
         """,
             deckDataJson);
 
     String responseFormat =
         """
         {
+          "presentationTitle": "string",
+          "presentationAuthor": "string",
           "overallStory": "string",
           "communicationIntent": "string",
           "keyThemes": ["string"],
@@ -172,6 +226,12 @@ public class DeckAnalysisService {
 
       DeckAnalysis analysis = new DeckAnalysis();
       analysis.setPresentation(presentation);
+
+      // Extract new fields
+      analysis.setPresentationTitle((String) analysisMap.get("presentationTitle"));
+      analysis.setPresentationAuthor((String) analysisMap.get("presentationAuthor"));
+
+      // Extract existing fields
       analysis.setOverallStory((String) analysisMap.get("overallStory"));
       analysis.setCommunicationIntent((String) analysisMap.get("communicationIntent"));
 
