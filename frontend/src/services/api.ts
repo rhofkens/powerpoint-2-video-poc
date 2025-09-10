@@ -36,6 +36,11 @@ import {
   ColorPalette
 } from '../types/intro-video';
 
+import {
+  VideoStoryRequest,
+  VideoStoryResponse
+} from '../types/video-story';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 /**
@@ -784,6 +789,95 @@ class ApiService {
     }
     
     return response.data.data;
+  }
+
+  // ============================================
+  // Video Story Methods
+  // ============================================
+
+  /**
+   * Create a new video story composition.
+   * This generates the JSON composition without rendering.
+   * 
+   * @param request - The video story creation request
+   * @returns The created video story with composition data
+   */
+  async createVideoStory(request: VideoStoryRequest): Promise<VideoStoryResponse> {
+    const response = await this.axiosInstance.post<VideoStoryResponse>('/video-stories', request);
+    return response.data;
+  }
+
+  /**
+   * Get a video story with its composition.
+   * 
+   * @param videoStoryId - The UUID of the video story
+   * @returns The video story with composition data
+   */
+  async getVideoStory(videoStoryId: string): Promise<VideoStoryResponse> {
+    const response = await this.axiosInstance.get<VideoStoryResponse>(`/video-stories/${videoStoryId}`);
+    return response.data;
+  }
+
+  /**
+   * Render an existing video story.
+   * Submits the composition for actual video rendering.
+   * 
+   * @param videoStoryId - The UUID of the video story to render
+   * @returns The render job status
+   */
+  async renderVideoStory(videoStoryId: string): Promise<VideoStoryResponse> {
+    const response = await this.axiosInstance.post<VideoStoryResponse>(`/video-stories/${videoStoryId}/render`);
+    return response.data;
+  }
+
+  /**
+   * Check the render status of a video story.
+   * 
+   * @param videoStoryId - The UUID of the video story
+   * @returns The current render status
+   */
+  async checkVideoStoryRenderStatus(videoStoryId: string): Promise<VideoStoryResponse> {
+    const response = await this.axiosInstance.get<VideoStoryResponse>(`/video-stories/${videoStoryId}/render/status`);
+    return response.data;
+  }
+
+  /**
+   * Poll for video story render completion.
+   * 
+   * @param videoStoryId - The UUID of the video story
+   * @param onProgress - Callback for progress updates
+   * @param pollInterval - Polling interval in milliseconds (default: 5000)
+   * @returns Promise that resolves when rendering is complete or fails
+   */
+  async pollVideoStoryRenderStatus(
+    videoStoryId: string,
+    onProgress?: (response: VideoStoryResponse) => void,
+    pollInterval: number = 5000
+  ): Promise<VideoStoryResponse> {
+    return new Promise((resolve, reject) => {
+      const poll = async () => {
+        try {
+          const response = await this.checkVideoStoryRenderStatus(videoStoryId);
+          
+          if (onProgress) {
+            onProgress(response);
+          }
+
+          if (response.renderStatus === 'COMPLETED') {
+            resolve(response);
+          } else if (response.renderStatus === 'FAILED' || response.renderStatus === 'CANCELLED') {
+            reject(new ApiError(response.errorMessage || 'Video rendering failed'));
+          } else {
+            // Continue polling
+            setTimeout(poll, pollInterval);
+          }
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      poll();
+    });
   }
 }
 

@@ -374,7 +374,30 @@ public class R2AssetService {
         break;
 
       case PRESENTATION_FULL_VIDEO:
-        return Paths.get(basePath, "video", "presentation.mp4");
+        // Look for video story files in the video-stories directory
+        Path videoStoriesDir = Paths.get(basePath, "video-stories");
+        if (Files.exists(videoStoriesDir) && Files.isDirectory(videoStoriesDir)) {
+          try {
+            // Find the most recent video story file
+            return Files.list(videoStoriesDir)
+                .filter(Files::isRegularFile)
+                .filter(p -> p.getFileName().toString().endsWith(".mp4"))
+                .max(
+                    (p1, p2) -> {
+                      try {
+                        return Files.getLastModifiedTime(p1)
+                            .compareTo(Files.getLastModifiedTime(p2));
+                      } catch (IOException e) {
+                        return 0;
+                      }
+                    })
+                .orElse(null);
+          } catch (IOException e) {
+            log.error("Error listing video story files", e);
+          }
+        }
+        log.warn("No video stories found at: {}", videoStoriesDir);
+        break;
 
       case PRESENTATION_INTRO_VIDEO:
         // Look for intro videos in the expected directory

@@ -2,13 +2,15 @@
 
 ## Executive Summary
 
-This plan outlines the architecture for implementing a comprehensive Video Story Service that will orchestrate the composition and rendering of final MP4 videos from previously generated presentation assets. The implementation follows a phased approach:
+This plan outlines the architecture for implementing a comprehensive Video Story Service that will orchestrate the composition and rendering of final MP4 videos from previously generated presentation assets. The implementation follows a phased approach aligned with the implementation roadmap:
 
-- **Phase 1** (Completed): Intro video generation using Google Veo API
+- **Phase 1** (Foundation): Establish core infrastructure and data models
 - **Phase 2** (Minimalistic MVP): Shotstack integration for intro section composition only (8 seconds) with simple text overlays and lower thirds
-- **Phase 3** (Full Implementation): Complete presentation video with slides, avatars, and audio
+- **Phase 3** (Full Presentation): Extend to complete presentation video with slides, avatars, and audio
+- **Phase 4** (API & Frontend): Create REST endpoints and comprehensive frontend components
+- **Phase 5** (Testing & Optimization): Ensure reliability, performance, and production readiness
 
-Phase 2 focuses on a minimal viable implementation that demonstrates end-to-end Shotstack integration with just the intro section, requiring only one asset upload (the Veo-generated intro video) and basic composition features. This approach enables rapid testing and validation before expanding to full presentation rendering.
+Phase 2 focuses on a minimal viable implementation that demonstrates end-to-end Shotstack integration with just the intro section, requiring only one asset upload (an intro video) and basic composition features. This approach enables rapid testing and validation before expanding to full presentation rendering.
 
 ## Current State Analysis
 

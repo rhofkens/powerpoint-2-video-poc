@@ -9,11 +9,13 @@ import { NarrativeStyleSelector, type NarrativeStyle } from './NarrativeStyleSel
 import { CompleteNarrativeTab } from './CompleteNarrativeTab';
 import { PreflightCheckModal } from './PreflightCheckModal';
 import { IntroVideoModal } from './IntroVideoModal';
+import { VideoStoryModal } from './VideoStoryModal';
 import { apiService } from '@/services/api';
 import { useAnalysisStore } from '@/store/analysisStore';
 import { useToast } from "@/hooks/use-toast";
-import { Brain, Loader2, RefreshCw, Sparkles, MessageCircle, AlertCircle, CheckCircle, Volume2, Video } from "lucide-react";
+import { Brain, Loader2, RefreshCw, Sparkles, MessageCircle, AlertCircle, CheckCircle, Volume2, Video, Film } from "lucide-react";
 import { PreflightCheckResponse } from '@/types/preflight';
+import { IntroVideo } from '@/types/intro-video';
 
 interface AIAnalysisPanelProps {
   presentationId: string;
@@ -25,6 +27,8 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
   const [isAnalyzingDeck, setIsAnalyzingDeck] = useState(false);
   const [preflightModalOpen, setPreflightModalOpen] = useState(false);
   const [introVideoModalOpen, setIntroVideoModalOpen] = useState(false);
+  const [videoStoryModalOpen, setVideoStoryModalOpen] = useState(false);
+  const [introVideo, setIntroVideo] = useState<IntroVideo | null>(null);
   const [isRunningPreflightCheck, setIsRunningPreflightCheck] = useState(false);
   const [isGeneratingAllAudio, setIsGeneratingAllAudio] = useState(false);
   const [audioGenerationProgress, setAudioGenerationProgress] = useState({ current: 0, total: 0 });
@@ -108,6 +112,15 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
     // Fetch deck analysis (don't let this block other operations)
     fetchDeckAnalysis(presentationId).catch(() => {
       // Ignore errors - deck analysis might not exist yet
+    });
+    
+    // Fetch intro video if exists
+    apiService.getIntroVideo(presentationId).then(video => {
+      if (video) {
+        setIntroVideo(video);
+      }
+    }).catch(() => {
+      // Ignore errors - intro video might not exist yet
     });
     
     // Check for running analyses  
@@ -480,6 +493,15 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                       <Video className="h-4 w-4 mr-2" />
                       Generate Intro Video
                     </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setVideoStoryModalOpen(true)}
+                      className="justify-start"
+                      disabled={!introVideo}
+                    >
+                      <Film className="h-4 w-4 mr-2" />
+                      Generate Video Story
+                    </Button>
                   </div>
                 </div>
                 
@@ -692,6 +714,16 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
         onOpenChange={setIntroVideoModalOpen}
         presentationId={presentationId}
         deckAnalysis={deckAnalysis}
+        onIntroVideoCreated={(video) => setIntroVideo(video)}
+      />
+      
+      {/* Video Story Modal */}
+      <VideoStoryModal
+        open={videoStoryModalOpen}
+        onOpenChange={setVideoStoryModalOpen}
+        presentationId={presentationId}
+        presentationTitle={presentationTitle || 'Presentation'}
+        introVideo={introVideo}
       />
     </div>
   );
