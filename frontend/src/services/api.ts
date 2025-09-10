@@ -803,7 +803,11 @@ class ApiService {
    * @returns The created video story with composition data
    */
   async createVideoStory(request: VideoStoryRequest): Promise<VideoStoryResponse> {
-    const response = await this.axiosInstance.post<VideoStoryResponse>('/video-stories', request);
+    const response = await this.axiosInstance.post<VideoStoryResponse>(
+      '/video-stories', 
+      request,
+      { timeout: 600000 } // 10 minutes timeout for asset publishing (can upload many large video files to Shotstack)
+    );
     return response.data;
   }
 

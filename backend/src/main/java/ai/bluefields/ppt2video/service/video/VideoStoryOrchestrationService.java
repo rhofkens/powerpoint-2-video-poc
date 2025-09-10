@@ -47,6 +47,7 @@ public class VideoStoryOrchestrationService {
   private final R2AssetService r2AssetService;
   private final PresignedUrlValidator urlValidator;
   private final ObjectMapper objectMapper;
+  private final PreCompositionAssetPublisher assetPublisher;
 
   @Value("${shotstack.assets.mode:r2-direct}")
   private String assetMode;
@@ -94,16 +95,16 @@ public class VideoStoryOrchestrationService {
                     new IllegalArgumentException(
                         "Intro video not found: " + request.getIntroVideoId()));
 
-    // Validate asset URLs if in R2 Direct mode
-    if ("r2-direct".equalsIgnoreCase(assetMode)) {
-      validateAssetUrls(presentation, introVideo);
-    }
+    // Step 1: Ensure all assets are ready for composition
+    // This handles both R2 URL refresh and Shotstack upload (if needed) before composition
+    log.info("Preparing assets for video story composition");
+    assetPublisher.ensureAllAssetsPublished(request.getPresentationId());
 
     // Create video story entity
     VideoStory videoStory = createVideoStoryEntity(presentation, request);
 
     try {
-      // Build composition using Shotstack format
+      // Step 2: Build composition using Shotstack format with clean URLs
       JsonNode composition = compositionService.buildFullTimeline(presentation, introVideo);
 
       // Store composition as script data

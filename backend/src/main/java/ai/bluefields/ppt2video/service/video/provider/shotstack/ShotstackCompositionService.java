@@ -1,10 +1,16 @@
 package ai.bluefields.ppt2video.service.video.provider.shotstack;
 
 import ai.bluefields.ppt2video.config.ShotstackConfig;
+import ai.bluefields.ppt2video.entity.AssetMetadata;
+import ai.bluefields.ppt2video.entity.AssetType;
+import ai.bluefields.ppt2video.entity.AvatarVideo;
 import ai.bluefields.ppt2video.entity.IntroVideo;
 import ai.bluefields.ppt2video.entity.Presentation;
+import ai.bluefields.ppt2video.entity.Slide;
+import ai.bluefields.ppt2video.repository.AssetMetadataRepository;
+import ai.bluefields.ppt2video.repository.AvatarVideoRepository;
+import ai.bluefields.ppt2video.repository.SlideRepository;
 import ai.bluefields.ppt2video.service.R2AssetService;
-import ai.bluefields.ppt2video.service.video.PresignedUrlValidator;
 import ai.bluefields.ppt2video.service.video.ShotstackAssetPublisher;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,8 +37,10 @@ public class ShotstackCompositionService {
   private final ShotstackConfig shotstackConfig;
   private final ObjectMapper objectMapper;
   private final R2AssetService r2AssetService;
-  private final PresignedUrlValidator urlValidator;
   private final ShotstackAssetPublisher assetPublisher;
+  private final SlideRepository slideRepository;
+  private final AvatarVideoRepository avatarVideoRepository;
+  private final AssetMetadataRepository assetMetadataRepository;
 
   @Value("${shotstack.assets.mode:r2-direct}")
   private String assetMode;
@@ -48,19 +56,16 @@ public class ShotstackCompositionService {
     ObjectNode timeline = objectMapper.createObjectNode();
     ArrayNode tracks = objectMapper.createArrayNode();
 
-    // Prepare asset URLs based on mode
-    Map<String, String> assetUrls = prepareAssetUrls(presentation, introVideo);
-
     // Build intro composition (8 seconds)
-    List<ObjectNode> introTracks = buildIntroComposition(presentation, introVideo, assetUrls);
+    List<ObjectNode> introTracks = buildIntroComposition(presentation, introVideo);
 
-    // Build slide composition (empty for now)
-    List<ObjectNode> slideTracks = buildSlideComposition(presentation, assetUrls);
+    // Build slide composition
+    List<ObjectNode> slideTracks = buildSlideComposition(presentation);
 
-    // Combine tracks (intro first, then slides)
+    // Combine tracks (slides first as background, intro on top)
     // Tracks are layered in reverse order (last track is bottom layer)
-    slideTracks.forEach(tracks::add);
     introTracks.forEach(tracks::add);
+    slideTracks.forEach(tracks::add);
 
     timeline.put("background", "#000000");
     timeline.set("tracks", tracks);
@@ -99,7 +104,7 @@ public class ShotstackCompositionService {
     tracks.add(buildLowerThirdOutTrack());
 
     // Track 5: Intro video with luma transition (bottom layer)
-    String introVideoUrl = assetUrls.getOrDefault("intro-video", introVideo.getPublishedUrl());
+    String introVideoUrl = getIntroVideoUrl(introVideo);
     tracks.add(buildIntroVideoTrack(introVideoUrl));
 
     return tracks;
@@ -110,13 +115,284 @@ public class ShotstackCompositionService {
     return buildIntroComposition(presentation, introVideo, new HashMap<>());
   }
 
-  /** Builds the slide composition. Currently empty placeholder for Phase 3 implementation. */
+  /** Builds the slide composition with avatar videos and slide images. */
   public List<ObjectNode> buildSlideComposition(
       Presentation presentation, Map<String, String> assetUrls) {
-    log.info("Building slide composition for presentation: {} (placeholder)", presentation.getId());
+    log.info("Building slide composition for presentation: {}", presentation.getId());
 
-    // Empty for Phase 2 - will be implemented in Phase 3
-    return new ArrayList<>();
+    List<ObjectNode> tracks = new ArrayList<>();
+
+    // Fetch all slides for the presentation, ordered by slide number
+    List<Slide> slides =
+        slideRepository.findByPresentationIdOrderBySlideNumber(presentation.getId());
+    if (slides.isEmpty()) {
+      log.warn("No slides found for presentation: {}", presentation.getId());
+      return tracks;
+    }
+
+    // Calculate timing for each slide
+    double currentTime = 8.0; // Start after intro (8 seconds)
+
+    for (Slide slide : slides) {
+      log.info("Processing slide {} (number: {})", slide.getId(), slide.getSlideNumber());
+
+      // Fetch avatar video for this slide
+      List<AvatarVideo> avatarVideos =
+          avatarVideoRepository.findBySlideIdAndStatusCompleted(slide.getId());
+
+      if (avatarVideos.isEmpty()) {
+        log.warn("No completed avatar video found for slide: {}, skipping", slide.getId());
+        continue;
+      }
+
+      // Use the most recent completed avatar video
+      AvatarVideo avatarVideo = avatarVideos.get(0);
+
+      // Check if we have duration data
+      if (avatarVideo.getDurationSeconds() == null || avatarVideo.getDurationSeconds() <= 0) {
+        log.error(
+            "Avatar video {} has no duration data, skipping slide {}",
+            avatarVideo.getId(),
+            slide.getId());
+        continue;
+      }
+
+      // Fetch slide image asset
+      List<AssetMetadata> slideImages =
+          assetMetadataRepository.findBySlideIdAndAssetType(slide.getId(), AssetType.SLIDE_IMAGE);
+
+      if (slideImages.isEmpty()) {
+        log.warn("No slide image found for slide: {}, skipping", slide.getId());
+        continue;
+      }
+
+      // Use the first slide image (there should typically be only one)
+      AssetMetadata slideImage = slideImages.get(0);
+
+      // Get URLs directly - they are already processed by PreCompositionAssetPublisher
+      String avatarVideoUrl = getAssetUrl(avatarVideo);
+      String slideImageUrl = getAssetUrl(slideImage);
+
+      // Calculate timing for this slide
+      SlideTimingInfo timing = calculateSlideTiming(currentTime, avatarVideo.getDurationSeconds());
+
+      // Build avatar video track (on top)
+      ObjectNode avatarTrack =
+          buildAvatarVideoTrack(
+              avatarVideoUrl,
+              timing.avatarStart,
+              timing.avatarDuration,
+              avatarVideo.getBackgroundColor());
+
+      // Build slide image track (background)
+      ObjectNode slideTrack =
+          buildSlideImageTrack(
+              slideImageUrl,
+              timing.slideStart,
+              timing.slideDuration,
+              slide.getSlideNumber() < slides.size()); // Add transition except for last slide
+
+      // Add tracks (remember: tracks are rendered in reverse order)
+      tracks.add(avatarTrack);
+      tracks.add(slideTrack);
+
+      // Update current time for next slide
+      currentTime = timing.nextSlideStart;
+
+      log.info(
+          "Added slide {} - start: {}, avatar duration: {}, next: {}",
+          slide.getSlideNumber(),
+          timing.slideStart,
+          timing.avatarDuration,
+          timing.nextSlideStart);
+    }
+
+    log.info(
+        "Built {} tracks for {} slides, total duration: {} seconds",
+        tracks.size(),
+        slides.size(),
+        currentTime);
+
+    return tracks;
+  }
+
+  /** Helper class to hold slide timing information */
+  private static class SlideTimingInfo {
+    double slideStart; // When slide image appears
+    double avatarStart; // When avatar video starts
+    double avatarDuration; // Duration of avatar video
+    double slideDuration; // Total duration of slide image
+    double transitionStart; // When transition begins
+    double nextSlideStart; // When next slide should start
+  }
+
+  /** Calculate precise timing for a slide */
+  private SlideTimingInfo calculateSlideTiming(double currentTime, double avatarDurationSeconds) {
+    SlideTimingInfo timing = new SlideTimingInfo();
+
+    // Slide image starts slightly before avatar for smooth transition
+    timing.slideStart = currentTime - 2.0; // 2 seconds overlap with previous transition
+    if (timing.slideStart < currentTime) {
+      timing.slideStart = currentTime; // But not before current time for first slide after intro
+    }
+
+    // Avatar starts after a small delay
+    timing.avatarStart = currentTime + 1.0;
+    timing.avatarDuration = avatarDurationSeconds;
+
+    // Slide image extends beyond avatar for smooth transition
+    timing.slideDuration = timing.avatarDuration + 4.0; // 1 second before + 3 seconds after
+
+    // Transition starts before slide ends (2-second overlap)
+    timing.transitionStart = timing.slideStart + timing.slideDuration - 2.0;
+
+    // Next slide starts during the transition
+    timing.nextSlideStart = timing.slideStart + timing.slideDuration - 1.0;
+
+    return timing;
+  }
+
+  /** Build avatar video track with chroma key */
+  private ObjectNode buildAvatarVideoTrack(
+      String videoUrl, double start, double duration, String backgroundColor) {
+    ObjectNode track = objectMapper.createObjectNode();
+    ArrayNode clips = objectMapper.createArrayNode();
+
+    ObjectNode clip = objectMapper.createObjectNode();
+    ObjectNode asset = objectMapper.createObjectNode();
+
+    asset.put("type", "video");
+    asset.put("src", videoUrl);
+    asset.put("volume", 1);
+
+    // Add chroma key for background removal
+    ObjectNode chromaKey = objectMapper.createObjectNode();
+    // Use the background color from avatar video, default to wheat if not specified
+    String chromaColor = backgroundColor != null ? backgroundColor : "#F5DEB3";
+    chromaKey.put("color", chromaColor);
+    chromaKey.put("threshold", 15);
+    chromaKey.put("halo", 50);
+    asset.set("chromaKey", chromaKey);
+
+    clip.set("asset", asset);
+    clip.put("start", start);
+    clip.put("length", duration);
+    clip.put("scale", 0.519); // Standard scale from example
+
+    // Position avatar in standard location
+    ObjectNode offset = objectMapper.createObjectNode();
+    offset.put("x", 0.371);
+    offset.put("y", -0.241);
+    clip.set("offset", offset);
+
+    // Add fade transitions
+    ObjectNode transition = objectMapper.createObjectNode();
+    transition.put("in", "fade");
+    transition.put("out", "fade");
+    clip.set("transition", transition);
+
+    clip.put("position", "center");
+
+    clips.add(clip);
+    track.set("clips", clips);
+
+    return track;
+  }
+
+  /** Gets the appropriate intro video URL based on the asset mode. */
+  private String getIntroVideoUrl(IntroVideo introVideo) {
+    if ("shotstack-upload".equalsIgnoreCase(assetMode)) {
+      // Try to get from Shotstack cache first
+      String cachedUrl = assetPublisher.getCachedIntroVideoUrl(introVideo.getId());
+      if (cachedUrl != null) {
+        return cachedUrl;
+      }
+      // Fallback to R2 URL if not in cache
+      log.warn("Intro video {} not found in Shotstack cache, using R2 URL", introVideo.getId());
+    }
+    // Use R2 URL directly (already refreshed by PreCompositionAssetPublisher)
+    return introVideo.getPublishedUrl();
+  }
+
+  /**
+   * Gets the appropriate asset URL based on the asset mode. URLs are already processed by
+   * PreCompositionAssetPublisher.
+   */
+  private String getAssetUrl(AvatarVideo avatarVideo) {
+    if ("shotstack-upload".equalsIgnoreCase(assetMode)) {
+      // Try to get from Shotstack cache first
+      String cachedUrl = assetPublisher.getCachedAvatarVideoUrl(avatarVideo.getId());
+      if (cachedUrl != null) {
+        return cachedUrl;
+      }
+      // Fallback to R2 URL if not in cache
+      log.warn("Avatar video {} not found in Shotstack cache, using R2 URL", avatarVideo.getId());
+    }
+    // Use R2 URL directly (already refreshed by PreCompositionAssetPublisher)
+    return avatarVideo.getPublishedUrl();
+  }
+
+  /** Gets the appropriate asset URL for slide images based on the asset mode. */
+  private String getAssetUrl(AssetMetadata assetMetadata) {
+    if ("shotstack-upload".equalsIgnoreCase(assetMode)) {
+      // Try to get from Shotstack cache first
+      String cachedUrl = assetPublisher.getCachedUrl(assetMetadata.getId());
+      if (cachedUrl != null) {
+        return cachedUrl;
+      }
+      // Fallback to R2 URL if not in cache
+      log.warn("Asset {} not found in Shotstack cache, using R2 URL", assetMetadata.getId());
+    }
+    // Use fresh R2 URL (already regenerated by PreCompositionAssetPublisher)
+    return r2AssetService.regeneratePresignedUrl(assetMetadata.getId());
+  }
+
+  /** Build slide image track with optional transition */
+  private ObjectNode buildSlideImageTrack(
+      String imageUrl, double start, double duration, boolean addTransition) {
+    ObjectNode track = objectMapper.createObjectNode();
+    ArrayNode clips = objectMapper.createArrayNode();
+
+    // Main slide image clip
+    ObjectNode imageClip = objectMapper.createObjectNode();
+    ObjectNode imageAsset = objectMapper.createObjectNode();
+
+    imageAsset.put("type", "image");
+    imageAsset.put("src", imageUrl);
+
+    imageClip.set("asset", imageAsset);
+    imageClip.put("start", start);
+    imageClip.put("length", duration);
+
+    // Add fade transitions for smooth appearance
+    ObjectNode transition = objectMapper.createObjectNode();
+    transition.put("in", "fade");
+    transition.put("out", "fade");
+    imageClip.set("transition", transition);
+
+    clips.add(imageClip);
+
+    // Add luma transition at the end if not the last slide
+    if (addTransition) {
+      ObjectNode lumaClip = objectMapper.createObjectNode();
+      ObjectNode lumaAsset = objectMapper.createObjectNode();
+
+      lumaAsset.put("type", "luma");
+      // Use arrow transition from config
+      String lumaUrl =
+          "https://templates.shotstack.io/basic/asset/video/luma/double-arrow/double-arrow-right-45.mp4";
+      lumaAsset.put("src", lumaUrl);
+
+      lumaClip.set("asset", lumaAsset);
+      lumaClip.put("start", start + duration - 2.0); // Start 2 seconds before slide ends
+      lumaClip.put("length", 2.0);
+
+      clips.add(lumaClip);
+    }
+
+    track.set("clips", clips);
+
+    return track;
   }
 
   // Keep old signature for backward compatibility
@@ -320,127 +596,5 @@ public class ShotstackCompositionService {
         .replace(">", "&gt;")
         .replace("\"", "&quot;")
         .replace("'", "&#39;");
-  }
-
-  /**
-   * Prepares asset URLs based on the configured asset mode. In R2 Direct mode: validates and
-   * refreshes presigned URLs if needed In Shotstack Upload mode: uploads assets to Shotstack for
-   * preview capability
-   */
-  private Map<String, String> prepareAssetUrls(Presentation presentation, IntroVideo introVideo) {
-    Map<String, String> assetUrls = new HashMap<>();
-    String mode = assetMode;
-
-    log.info("Preparing asset URLs for presentation {} in {} mode", presentation.getId(), mode);
-
-    // Handle intro video URL
-    if (introVideo != null && introVideo.getPublishedUrl() != null) {
-      String processedUrl = processAssetUrl(introVideo.getPublishedUrl(), "video", mode);
-      assetUrls.put("intro-video", processedUrl);
-    }
-
-    // For Phase 3: Add slide assets here
-    // Map<String, String> slideAssets = r2AssetService.getSlideAssetUrls(presentation.getId());
-    // for (Map.Entry<String, String> entry : slideAssets.entrySet()) {
-    //   String processedUrl = processAssetUrl(entry.getValue(), "image", mode);
-    //   assetUrls.put(entry.getKey(), processedUrl);
-    // }
-
-    return assetUrls;
-  }
-
-  /**
-   * Processes a single asset URL based on the mode.
-   *
-   * @param sourceUrl The original asset URL (typically R2 presigned URL)
-   * @param assetType The type of asset (video, image, audio)
-   * @param mode The asset mode (r2-direct or shotstack-upload)
-   * @return The processed URL suitable for Shotstack composition
-   */
-  private String processAssetUrl(String sourceUrl, String assetType, String mode) {
-    if (sourceUrl == null || sourceUrl.isEmpty()) {
-      return sourceUrl;
-    }
-
-    if ("shotstack-upload".equalsIgnoreCase(mode)) {
-      // Upload to Shotstack for preview capability
-      try {
-        log.debug("Uploading {} asset to Shotstack for preview mode", assetType);
-        return assetPublisher.uploadAsset(sourceUrl, assetType);
-      } catch (Exception e) {
-        log.error("Failed to upload asset to Shotstack, falling back to R2 URL", e);
-        return validateAndRefreshUrl(sourceUrl);
-      }
-    } else {
-      // R2 Direct mode - validate and refresh if needed
-      return validateAndRefreshUrl(sourceUrl);
-    }
-  }
-
-  /** Validates a presigned URL and refreshes it if expired or expiring soon. */
-  private String validateAndRefreshUrl(String url) {
-    if (url == null || !url.contains("X-Amz-Expires")) {
-      // Not a presigned URL, return as-is
-      return url;
-    }
-
-    PresignedUrlValidator.UrlValidationResult validation = urlValidator.validateUrl(url);
-    if (!validation.isValid()) {
-      log.warn(
-          "Presigned URL validation failed: {}. Attempting to refresh.",
-          validation.getErrorMessage());
-
-      // Try to find the asset metadata by URL and regenerate
-      try {
-        // Extract the object key from the URL to find the asset
-        String objectKey = extractObjectKeyFromUrl(url);
-        if (objectKey != null) {
-          // Find asset metadata by object key and regenerate URL
-          java.util.Optional<ai.bluefields.ppt2video.entity.AssetMetadata> assetOpt =
-              r2AssetService.findAssetByObjectKey(objectKey);
-          if (assetOpt.isPresent()) {
-            String newUrl = r2AssetService.regeneratePresignedUrl(assetOpt.get().getId());
-            log.info("Successfully regenerated presigned URL for asset");
-            return newUrl;
-          }
-        }
-      } catch (Exception e) {
-        log.error("Failed to regenerate presigned URL", e);
-      }
-
-      // If regeneration fails, return original URL and hope for the best
-      log.warn("Could not regenerate URL, using original which may fail");
-    }
-
-    return url;
-  }
-
-  /** Extracts the object key from an R2 presigned URL. */
-  private String extractObjectKeyFromUrl(String url) {
-    try {
-      // R2 URLs have format:
-      // https://[bucket].[account].r2.cloudflarestorage.com/[object-key]?[params]
-      java.net.URI uri = new java.net.URI(url);
-      String path = uri.getPath();
-      if (path != null && path.startsWith("/")) {
-        return path.substring(1); // Remove leading slash
-      }
-    } catch (Exception e) {
-      log.debug("Could not extract object key from URL: {}", e.getMessage());
-    }
-    return null;
-  }
-
-  /** Batch processes multiple asset URLs. */
-  public Map<String, String> processAssetUrls(Map<String, String> sourceUrls, String assetType) {
-    String mode = assetMode;
-    Map<String, String> processedUrls = new HashMap<>();
-
-    for (Map.Entry<String, String> entry : sourceUrls.entrySet()) {
-      String processedUrl = processAssetUrl(entry.getValue(), assetType, mode);
-      processedUrls.put(entry.getKey(), processedUrl);
-    }
-
-    return processedUrls;
   }
 }
