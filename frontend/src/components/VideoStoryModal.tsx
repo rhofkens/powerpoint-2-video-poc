@@ -15,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from '@/services/api';
-import { VideoStoryResponse, VideoStoryStatus, RenderJobStatus } from '@/types/video-story';
+import { VideoStoryRequest, VideoStoryResponse, VideoStoryStatus, RenderJobStatus } from '@/types/video-story';
 import { IntroVideo } from '@/types/intro-video';
 import { 
   Video, 
@@ -161,16 +161,18 @@ export function VideoStoryModal({
     setError(null);
 
     try {
-      const url = force ? `/video-stories?force=true` : '/video-stories';
-      const response = await apiService.axiosInstance.post<VideoStoryResponse>(url, {
+      // Use the API service method which has proper timeout configured (10 minutes)
+      const videoStoryRequest: VideoStoryRequest = {
         presentationId,
         introVideoId: introVideo.id,
         title: `${presentationTitle} - Video Story`,
         description: `Automated video story for ${presentationTitle}`,
         providerType: 'shotstack'
-      });
-
-      setVideoStory(response.data);
+      };
+      
+      const videoStory = await apiService.createVideoStory(videoStoryRequest, force);
+      
+      setVideoStory(videoStory);
       toast({
         title: force ? "Video Story Regenerated" : "Video Story Created",
         description: "Video composition has been generated successfully."

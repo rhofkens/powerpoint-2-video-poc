@@ -72,7 +72,7 @@ class ApiService {
   constructor() {
     this.axiosInstance = axios.create({
       baseURL: API_BASE_URL,
-      timeout: 60000, // 60 seconds timeout for AI operations
+      timeout: 120000, // 2 minutes default timeout (many operations involve AI processing)
       headers: {
         'Content-Type': 'application/json',
       },
@@ -403,7 +403,7 @@ class ApiService {
     }>(
       `/narratives/${narrativeId}/shorten?reductionPercentage=${reductionPercentage}`,
       {},
-      { timeout: 60000 } // 60 seconds timeout for narrative shortening
+      { timeout: 180000 } // 3 minutes timeout for narrative shortening (AI processing can be slow)
     );
     return response.data.data;
   }
@@ -802,11 +802,13 @@ class ApiService {
    * This generates the JSON composition without rendering.
    * 
    * @param request - The video story creation request
+   * @param force - Force regeneration even if one exists
    * @returns The created video story with composition data
    */
-  async createVideoStory(request: VideoStoryRequest): Promise<VideoStoryResponse> {
+  async createVideoStory(request: VideoStoryRequest, force: boolean = false): Promise<VideoStoryResponse> {
+    const url = force ? '/video-stories?force=true' : '/video-stories';
     const response = await this.axiosInstance.post<VideoStoryResponse>(
-      '/video-stories', 
+      url, 
       request,
       { timeout: 600000 } // 10 minutes timeout for asset publishing (can upload many large video files to Shotstack)
     );
