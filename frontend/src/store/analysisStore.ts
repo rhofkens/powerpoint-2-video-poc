@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { AnalysisStatusDto, DeckAnalysis } from '../types/presentation';
+import { AnalysisStatusDto, AnalysisType, DeckAnalysis } from '../types/presentation';
 import { apiService } from '../services/api';
 
 /**
@@ -28,13 +28,13 @@ interface AnalysisState {
   /** Sets deck analysis for a presentation */
   setDeckAnalysis: (presentationId: string, analysis: DeckAnalysis | null) => void;
   /** Starts polling for analysis status */
-  startPolling: (presentationId: string) => void;
+  startPolling: (presentationId: string, analysisType?: string) => void;
   /** Stops polling for a specific presentation */
-  stopPolling: (presentationId: string) => void;
+  stopPolling: (presentationId: string, analysisType?: string) => void;
   /** Stops all polling */
   stopAllPolling: () => void;
   /** Fetches analysis status once */
-  fetchAnalysisStatus: (presentationId: string) => Promise<void>;
+  fetchAnalysisStatus: (presentationId: string, analysisType?: string) => Promise<void>;
   /** Fetches deck analysis */
   fetchDeckAnalysis: (presentationId: string) => Promise<void>;
   /** Clears analysis data for a presentation */
@@ -78,8 +78,8 @@ export const useAnalysisStore = create<AnalysisState>()(
           deckAnalyses: { ...state.deckAnalyses, [presentationId]: analysis },
         }), false, 'setDeckAnalysis'),
 
-      fetchAnalysisStatus: async (presentationId) => {
-        console.log('[AnalysisStore] Fetching analysis status for:', presentationId);
+      fetchAnalysisStatus: async (presentationId, analysisType) => {
+        console.log('[AnalysisStore] Fetching analysis status for:', presentationId, 'type:', analysisType);
         
         // Set loading state
         set((state) => ({
@@ -90,7 +90,7 @@ export const useAnalysisStore = create<AnalysisState>()(
         }), false, 'setStatusPollingLoading');
 
         try {
-          const newStatuses = await apiService.getAnalysisStatus(presentationId);
+          const newStatuses = await apiService.getAnalysisStatus(presentationId, analysisType as AnalysisType);
           console.log('[AnalysisStore] Received statuses from API:', newStatuses);
           
           // Update statuses - merge with existing statuses for other presentations
@@ -112,7 +112,7 @@ export const useAnalysisStore = create<AnalysisState>()(
           
           if (!hasRunning) {
             console.log('[AnalysisStore] No running analyses, stopping polling');
-            get().stopPolling(presentationId);
+            get().stopPolling(presentationId, analysisType);
           }
           
         } catch (error) {
@@ -158,39 +158,43 @@ export const useAnalysisStore = create<AnalysisState>()(
         }
       },
 
-      startPolling: (presentationId) => {
+      startPolling: (presentationId, analysisType) => {
         const state = get();
         
+        // Create a unique key for polling (presentationId + optional type)
+        const pollingKey = analysisType ? `${presentationId}_${analysisType}` : presentationId;
+        
         // Don't start if already polling
-        if (state.pollingIntervals[presentationId]) {
+        if (state.pollingIntervals[pollingKey]) {
           return;
         }
 
         // Initial fetch
-        state.fetchAnalysisStatus(presentationId);
+        state.fetchAnalysisStatus(presentationId, analysisType);
 
         // Set up interval
         const interval = setInterval(() => {
           // Use get() to get fresh state each time
-          get().fetchAnalysisStatus(presentationId);
+          get().fetchAnalysisStatus(presentationId, analysisType);
         }, 5000); // Poll every 5 seconds
 
         // Store interval reference
         set((state) => ({
-          pollingIntervals: { ...state.pollingIntervals, [presentationId]: interval },
+          pollingIntervals: { ...state.pollingIntervals, [pollingKey]: interval },
         }), false, 'startPolling');
       },
 
-      stopPolling: (presentationId) => {
+      stopPolling: (presentationId, analysisType) => {
         const state = get();
-        const interval = state.pollingIntervals[presentationId];
+        const pollingKey = analysisType ? `${presentationId}_${analysisType}` : presentationId;
+        const interval = state.pollingIntervals[pollingKey];
         
         if (interval) {
           clearInterval(interval);
           
           // Remove interval from store
           set((state) => {
-            const { [presentationId]: removed, ...rest } = state.pollingIntervals;
+            const { [pollingKey]: removed, ...rest } = state.pollingIntervals;
             return { pollingIntervals: rest };
           }, false, 'stopPolling');
         }

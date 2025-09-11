@@ -5,6 +5,7 @@ import ai.bluefields.ppt2video.dto.AnalysisStatusDto.AnalysisType;
 import ai.bluefields.ppt2video.dto.ApiResponse;
 import ai.bluefields.ppt2video.dto.GenerateNarrativeRequestDto;
 import ai.bluefields.ppt2video.dto.ShortenNarrativeResponse;
+import ai.bluefields.ppt2video.dto.avatar.BatchAvatarVideoRequest;
 import ai.bluefields.ppt2video.entity.DeckAnalysis;
 import ai.bluefields.ppt2video.entity.Presentation;
 import ai.bluefields.ppt2video.entity.Slide;
@@ -20,6 +21,7 @@ import ai.bluefields.ppt2video.service.ai.narrative.NarrativeGenerationService;
 import ai.bluefields.ppt2video.service.ai.narrative.optimization.EmotionalEnhancer;
 import ai.bluefields.ppt2video.service.ai.slideanalysis.BatchSlideAnalysisOrchestrator;
 import ai.bluefields.ppt2video.service.ai.slideanalysis.SlideAnalysisService;
+import ai.bluefields.ppt2video.service.avatar.AvatarVideoService;
 import java.util.List;
 import java.util.UUID;
 import javax.validation.constraints.Max;
@@ -48,6 +50,9 @@ public class AIAnalysisController {
   private final BatchNarrativeOrchestrator batchNarrativeOrchestrator;
   private final ai.bluefields.ppt2video.service.ai.narrative.NarrativeOptimizationOrchestrator
       narrativeOptimizationOrchestrator;
+  private final ai.bluefields.ppt2video.service.avatar.BatchAvatarVideoOrchestrator
+      batchAvatarVideoOrchestrator;
+  private final AvatarVideoService avatarVideoService;
   private final PresentationRepository presentationRepository;
   private final AnalysisStatusService analysisStatusService;
   private final SlideRepository slideRepository;
@@ -621,6 +626,115 @@ public class AIAnalysisController {
               ApiResponse.<List<AnalysisStatusDto>>builder()
                   .success(false)
                   .message("Failed to get analysis status: " + e.getMessage())
+                  .build());
+    }
+  }
+
+  /**
+   * Generate avatar videos for all slides in a presentation.
+   *
+   * @param presentationId The presentation ID
+   * @param request The batch avatar video generation request
+   * @return Response indicating batch generation has started
+   */
+  @PostMapping("/presentations/{id}/generate-all-avatar-videos")
+  public ResponseEntity<ApiResponse<String>> generateAllAvatarVideos(
+      @PathVariable("id") UUID presentationId,
+      @RequestBody(required = false) BatchAvatarVideoRequest request) {
+
+    log.info("Received request to generate all avatar videos for presentation: {}", presentationId);
+
+    // Use default request if none provided
+    if (request == null) {
+      log.debug("No request body provided, using default settings");
+      request =
+          BatchAvatarVideoRequest.builder()
+              .regenerateExisting(false)
+              .usePublishedAudio(true)
+              .build();
+    } else {
+      log.debug(
+          "Request settings - regenerateExisting: {}, usePublishedAudio: {}, avatarId: {}, selectedSlides: {}",
+          request.isRegenerateExisting(),
+          request.isUsePublishedAudio(),
+          request.getAvatarId(),
+          request.getSelectedSlideIds() != null ? request.getSelectedSlideIds().size() : "all");
+    }
+
+    // Check if presentation exists
+    log.debug("Checking if presentation exists: {}", presentationId);
+    Presentation presentation = presentationRepository.findById(presentationId).orElse(null);
+    if (presentation == null) {
+      log.warn("Presentation not found: {}", presentationId);
+      return ResponseEntity.status(HttpStatus.NOT_FOUND)
+          .body(
+              ApiResponse.<String>builder()
+                  .success(false)
+                  .message("Presentation not found")
+                  .build());
+    }
+    log.debug("Found presentation: {} with title: {}", presentationId, presentation.getTitle());
+
+    // Check if presentation has slides
+    log.debug("Checking slides for presentation: {}", presentationId);
+    if (presentation.getSlides() == null || presentation.getSlides().isEmpty()) {
+      log.warn("Presentation {} has no slides", presentationId);
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body(
+              ApiResponse.<String>builder()
+                  .success(false)
+                  .message("No slides found in presentation")
+                  .build());
+    }
+
+    // Start batch avatar video generation asynchronously
+    log.info(
+        "Starting batch avatar video generation for presentation {} with {} slides",
+        presentationId,
+        presentation.getSlides().size());
+    batchAvatarVideoOrchestrator.generateAllAvatarVideos(presentationId, request);
+    log.debug("Batch generation task submitted successfully for presentation: {}", presentationId);
+
+    return ResponseEntity.ok(
+        ApiResponse.<String>builder()
+            .success(true)
+            .data("Avatar video generation started for all slides")
+            .message(
+                String.format(
+                    "Batch avatar video generation initiated for %d slides",
+                    presentation.getSlides().size()))
+            .build());
+  }
+
+  /**
+   * Get the status of avatar videos for a presentation.
+   *
+   * @param presentationId The presentation ID
+   * @return List of avatar video statuses
+   */
+  @GetMapping("/presentations/{id}/avatar-videos-status")
+  public ResponseEntity<ApiResponse<List<ai.bluefields.ppt2video.dto.AvatarVideoStatusDto>>>
+      getAvatarVideosStatus(@PathVariable("id") UUID presentationId) {
+
+    log.info("Received request to get avatar videos status for presentation: {}", presentationId);
+
+    try {
+      List<ai.bluefields.ppt2video.dto.AvatarVideoStatusDto> statuses =
+          avatarVideoService.getAvatarVideoStatuses(presentationId);
+
+      return ResponseEntity.ok(
+          ApiResponse.<List<ai.bluefields.ppt2video.dto.AvatarVideoStatusDto>>builder()
+              .success(true)
+              .data(statuses)
+              .message("Avatar videos status retrieved successfully")
+              .build());
+    } catch (Exception e) {
+      log.error("Failed to get avatar videos status for presentation: {}", presentationId, e);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body(
+              ApiResponse.<List<ai.bluefields.ppt2video.dto.AvatarVideoStatusDto>>builder()
+                  .success(false)
+                  .message("Failed to get avatar videos status: " + e.getMessage())
                   .build());
     }
   }

@@ -884,6 +884,44 @@ class ApiService {
       poll();
     });
   }
+
+  /**
+   * Generate avatar videos for all slides in a presentation.
+   * 
+   * @param presentationId - The presentation ID
+   * @param options - Optional batch generation options
+   * @returns Promise with success response
+   */
+  async generateAllAvatarVideos(
+    presentationId: string, 
+    options?: {
+      avatarId?: string;
+      backgroundColor?: string;
+      regenerateExisting?: boolean;
+      selectedSlideIds?: string[];
+      usePublishedAudio?: boolean;
+      customAudioUrl?: string;
+    }
+  ): Promise<ApiResponse<string>> {
+    const response = await this.axiosInstance.post<ApiResponse<string>>(
+      `/presentations/${presentationId}/generate-all-avatar-videos`,
+      options || {}
+    );
+    return response.data;
+  }
+
+  /**
+   * Get the status of avatar videos for a presentation.
+   * 
+   * @param presentationId - The presentation ID
+   * @returns Promise with list of avatar video statuses
+   */
+  async getAvatarVideosStatus(presentationId: string): Promise<ApiResponse<AvatarVideoStatusDto[]>> {
+    const response = await this.axiosInstance.get<ApiResponse<AvatarVideoStatusDto[]>>(
+      `/presentations/${presentationId}/avatar-videos-status`
+    );
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();

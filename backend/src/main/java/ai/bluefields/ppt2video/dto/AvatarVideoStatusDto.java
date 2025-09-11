@@ -21,6 +21,8 @@ import lombok.NoArgsConstructor;
 public class AvatarVideoStatusDto {
 
   private UUID id;
+  private UUID slideId;
+  private Integer slideNumber;
   private AvatarGenerationStatusType status;
   private Integer progressPercentage;
   private String videoUrl;

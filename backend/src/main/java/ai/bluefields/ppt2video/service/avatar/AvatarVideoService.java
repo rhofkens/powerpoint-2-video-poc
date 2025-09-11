@@ -9,12 +9,12 @@ import ai.bluefields.ppt2video.repository.PresentationRepository;
 import ai.bluefields.ppt2video.repository.SlideNarrativeRepository;
 import ai.bluefields.ppt2video.repository.SlideRepository;
 import ai.bluefields.ppt2video.service.AssetMetadataService;
-import ai.bluefields.ppt2video.service.PresignedUrlService;
 import ai.bluefields.ppt2video.service.R2AssetService;
 import ai.bluefields.ppt2video.service.avatar.providers.HeyGenConfiguration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +41,6 @@ public class AvatarVideoService {
   private final HeyGenConfiguration heyGenConfiguration;
   private final ObjectMapper objectMapper;
   private final AssetMetadataService assetMetadataService;
-  private final PresignedUrlService presignedUrlService;
 
   /**
    * Generate an avatar video for a slide.
@@ -559,6 +558,77 @@ public class AvatarVideoService {
         .createdAt(avatarVideo.getCreatedAt())
         .updatedAt(avatarVideo.getUpdatedAt())
         .metadata(avatarVideo.getRequestPayload())
+        .build();
+  }
+
+  /**
+   * Get avatar video statuses for all slides in a presentation. Returns the most recent avatar
+   * video status for each slide.
+   *
+   * @param presentationId the presentation ID
+   * @return list of avatar video statuses
+   */
+  @Transactional(readOnly = true)
+  public List<AvatarVideoStatusDto> getAvatarVideoStatuses(UUID presentationId) {
+    log.info("Getting avatar video statuses for presentation: {}", presentationId);
+
+    // Validate presentation exists
+    if (!presentationRepository.existsById(presentationId)) {
+      throw new ResourceNotFoundException("Presentation not found: " + presentationId);
+    }
+
+    // Get all avatar videos for the presentation, ordered by creation date (newest first)
+    List<AvatarVideo> avatarVideos =
+        avatarVideoRepository.findByPresentationIdOrderByCreatedAtDesc(presentationId);
+
+    // Group by slide and keep only the most recent video for each slide
+    // Since the list is already ordered by createdAt DESC, the first video for each slide is the
+    // newest
+    Map<UUID, AvatarVideo> latestVideosBySlide = new java.util.HashMap<>();
+    for (AvatarVideo video : avatarVideos) {
+      UUID slideId = video.getSlide().getId();
+      // Only add if we haven't seen this slide yet (since we're iterating newest to oldest)
+      if (!latestVideosBySlide.containsKey(slideId)) {
+        latestVideosBySlide.put(slideId, video);
+      }
+    }
+
+    // Convert to DTOs with slide information and sort by slide number
+    return latestVideosBySlide.values().stream()
+        .map(this::toStatusDto)
+        .sorted((a, b) -> Integer.compare(a.getSlideNumber(), b.getSlideNumber()))
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Convert AvatarVideo entity to AvatarVideoStatusDto.
+   *
+   * @param avatarVideo the avatar video entity
+   * @return the status DTO
+   */
+  private AvatarVideoStatusDto toStatusDto(AvatarVideo avatarVideo) {
+    // Get refreshed URL if available
+    String publishedUrl = null;
+    if (avatarVideo.getR2Asset() != null) {
+      try {
+        publishedUrl = r2AssetService.regeneratePresignedUrl(avatarVideo.getR2Asset().getId());
+      } catch (Exception e) {
+        log.warn("Failed to get refreshed URL for asset: {}", avatarVideo.getR2Asset().getId(), e);
+      }
+    }
+
+    return AvatarVideoStatusDto.builder()
+        .id(avatarVideo.getId())
+        .slideId(avatarVideo.getSlide().getId())
+        .slideNumber(avatarVideo.getSlide().getSlideNumber())
+        .status(avatarVideo.getStatus())
+        .progressPercentage(avatarVideo.getProgressPercentage())
+        .videoUrl(avatarVideo.getVideoUrl())
+        .publishedUrl(publishedUrl)
+        .errorMessage(avatarVideo.getErrorMessage())
+        .startedAt(avatarVideo.getStartedAt())
+        .completedAt(avatarVideo.getCompletedAt())
+        .durationSeconds(avatarVideo.getDurationSeconds())
         .build();
   }
 }

@@ -25,6 +25,11 @@ public class AnalysisStatusService {
     return presentationId.toString() + "_" + type.name();
   }
 
+  /** Create a new analysis status and return its ID. */
+  public String createAnalysisStatus(UUID presentationId, AnalysisType type) {
+    return startAnalysis(presentationId, type, 0).presentationId() + "_" + type.name();
+  }
+
   /** Start tracking a new analysis operation. */
   public AnalysisStatusDto startAnalysis(UUID presentationId, AnalysisType type, int totalItems) {
     String key = createKey(presentationId, type);
@@ -50,6 +55,75 @@ public class AnalysisStatusService {
     log.info("Status key: {}", key);
 
     return status;
+  }
+
+  /** Update progress for an ongoing analysis using analysis ID. */
+  public void updateProgress(
+      String analysisId, int totalItems, int completedItems, int failedItems, String message) {
+    log.debug(
+        "Updating progress for analysisId {} - total: {}, completed: {}, failed: {}, message: {}",
+        analysisId,
+        totalItems,
+        completedItems,
+        failedItems,
+        message);
+
+    AnalysisStatusDto current = statusMap.get(analysisId);
+
+    if (current == null) {
+      log.warn("No analysis found for ID: {}", analysisId);
+      return;
+    }
+
+    AnalysisStatusDto updated =
+        new AnalysisStatusDto(
+            current.presentationId(),
+            current.analysisType(),
+            current.state(),
+            totalItems > 0 ? totalItems : current.totalItems(),
+            completedItems,
+            failedItems,
+            current.startTime(),
+            current.endTime(),
+            current.errors(),
+            message != null ? message : current.message());
+
+    statusMap.put(analysisId, updated);
+    log.info(
+        "Progress Update - {}: {}/{} completed, {} failed - {}",
+        current.analysisType(),
+        completedItems,
+        totalItems,
+        failedItems,
+        message != null ? message : "");
+  }
+
+  /** Update analysis status with state and message. */
+  public void updateAnalysisStatus(String analysisId, AnalysisState state, String message) {
+    AnalysisStatusDto current = statusMap.get(analysisId);
+
+    if (current == null) {
+      log.warn("No analysis found for ID: {}", analysisId);
+      return;
+    }
+
+    AnalysisStatusDto updated =
+        new AnalysisStatusDto(
+            current.presentationId(),
+            current.analysisType(),
+            state,
+            current.totalItems(),
+            current.completedItems(),
+            current.failedItems(),
+            current.startTime(),
+            state == AnalysisState.COMPLETED || state == AnalysisState.FAILED
+                ? LocalDateTime.now()
+                : current.endTime(),
+            current.errors(),
+            message);
+
+    statusMap.put(analysisId, updated);
+    log.info("Updated analysis {} to state: {} - {}", analysisId, state, message);
   }
 
   /** Update progress for an ongoing analysis. */

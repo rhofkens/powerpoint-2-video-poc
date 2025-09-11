@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -21,4 +22,13 @@ public interface PresentationRepository extends JpaRepository<Presentation, UUID
   @Query(
       "SELECT DISTINCT p FROM Presentation p LEFT JOIN FETCH p.deckAnalysis ORDER BY p.createdAt DESC")
   List<Presentation> findAllWithDeckAnalysis();
+
+  /**
+   * Find a presentation by ID with slides eagerly loaded.
+   *
+   * @param id The presentation ID
+   * @return Optional containing the presentation with slides
+   */
+  @Query("SELECT p FROM Presentation p LEFT JOIN FETCH p.slides WHERE p.id = :id")
+  java.util.Optional<Presentation> findByIdWithSlides(@Param("id") UUID id);
 }

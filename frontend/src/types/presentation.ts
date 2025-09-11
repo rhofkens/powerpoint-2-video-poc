@@ -222,7 +222,8 @@ export interface AnalysisStatusDto {
 export type AnalysisType = 
   | 'DECK_ANALYSIS'
   | 'ALL_SLIDES_ANALYSIS' 
-  | 'ALL_NARRATIVES_GENERATION';
+  | 'ALL_NARRATIVES_GENERATION'
+  | 'ALL_AVATAR_VIDEOS_GENERATION';
 
 /**
  * Analysis state enumeration.
@@ -525,7 +526,6 @@ export interface AvatarVideo {
 export interface AvatarVideoRequest {
   presentationId: string;
   slideId: string;
-  avatarId?: string;
   backgroundColor?: string;
   usePublishedAudio?: boolean;
   customAudioUrl?: string;

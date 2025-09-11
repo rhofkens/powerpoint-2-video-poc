@@ -21,7 +21,8 @@ public record AnalysisStatusDto(
   public enum AnalysisType {
     DECK_ANALYSIS,
     ALL_SLIDES_ANALYSIS,
-    ALL_NARRATIVES_GENERATION
+    ALL_NARRATIVES_GENERATION,
+    ALL_AVATAR_VIDEOS_GENERATION
   }
 
   /** Current state of the analysis. */

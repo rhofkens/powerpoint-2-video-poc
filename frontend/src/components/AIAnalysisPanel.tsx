@@ -32,6 +32,9 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
   const [isRunningPreflightCheck, setIsRunningPreflightCheck] = useState(false);
   const [isGeneratingAllAudio, setIsGeneratingAllAudio] = useState(false);
   const [audioGenerationProgress, setAudioGenerationProgress] = useState({ current: 0, total: 0 });
+  const [isGeneratingAvatarVideos, setIsGeneratingAvatarVideos] = useState(false);
+  const [avatarVideoProgress, setAvatarVideoProgress] = useState({ initiated: 0, processing: 0, completed: 0, total: 0 });
+  const avatarVideoPollingRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   
   // Get state and actions from Zustand store
@@ -46,6 +49,7 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
     stopPolling,
     clearAnalysisData,
     setNarrativeStyle,
+    setAnalysisStatuses,
   } = useAnalysisStore();
   
   // Get current presentation's data
@@ -317,6 +321,229 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
     }
   };
 
+  const handleGenerateAllAvatarVideos = async () => {
+    try {
+      setIsGeneratingAvatarVideos(true);
+      setAvatarVideoProgress({ initiated: 0, processing: 0, completed: 0, total: 0 });
+      
+      // Start batch generation
+      const response = await apiService.generateAllAvatarVideos(presentationId, {
+        regenerateExisting: false,
+        usePublishedAudio: true,
+        backgroundColor: '#F5DEB3'
+      });
+      
+      if (response.success) {
+        toast({
+          title: "Avatar Video Generation Started",
+          description: "Checking avatar video status for all slides..."
+        });
+        
+        // Start polling for batch status
+        startPolling(presentationId, 'ALL_AVATAR_VIDEOS_GENERATION');
+        
+        // Small delay to let backend process
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Check initial status to see if anything needs processing
+        const videoResponse = await apiService.getAvatarVideosStatus(presentationId);
+        
+        // Check if response has no data or empty array
+        if (!videoResponse.data || videoResponse.data.length === 0) {
+          // No videos to process - all were skipped
+          setIsGeneratingAvatarVideos(false);
+          setAvatarVideoProgress({ initiated: 0, processing: 0, completed: 0, total: 0 });
+          stopPolling(presentationId, 'ALL_AVATAR_VIDEOS_GENERATION');
+          
+          // Remove the IN_PROGRESS status from the store
+          const updatedStatuses = analysisStatuses.filter(s => 
+            !(s.presentationId === presentationId && s.analysisType === 'ALL_AVATAR_VIDEOS_GENERATION')
+          );
+          setAnalysisStatuses(updatedStatuses);
+          
+          toast({
+            title: "No New Videos Generated",
+            description: "All slides already have avatar videos."
+          });
+          return;
+        }
+        
+        if (videoResponse.success && videoResponse.data) {
+          const needsProcessing = videoResponse.data.some(v => 
+            v.status === 'PENDING' || v.status === 'PROCESSING'
+          );
+          
+          if (needsProcessing) {
+            // Start polling for individual video status
+            startAvatarVideoPolling();
+          } else {
+            // All videos already exist or completed
+            setIsGeneratingAvatarVideos(false);
+            setAvatarVideoProgress({ initiated: 0, processing: 0, completed: 0, total: 0 });
+            stopPolling(presentationId, 'ALL_AVATAR_VIDEOS_GENERATION');
+            
+            // Remove the IN_PROGRESS status from the store since all videos are complete
+            const updatedStatuses = analysisStatuses.filter(s => 
+              !(s.presentationId === presentationId && s.analysisType === 'ALL_AVATAR_VIDEOS_GENERATION')
+            );
+            setAnalysisStatuses(updatedStatuses);
+            
+            const completed = videoResponse.data.filter(v => v.status === 'COMPLETED').length;
+            const failed = videoResponse.data.filter(v => v.status === 'FAILED').length;
+            
+            if (completed === videoResponse.data.length) {
+              toast({
+                title: "Avatar Videos Already Generated",
+                description: `All ${completed} slides already have avatar videos.`
+              });
+            } else if (failed > 0) {
+              toast({
+                title: "Some Videos Failed",
+                description: `${completed} videos exist, ${failed} failed previously.`,
+                variant: "default"
+              });
+            }
+          }
+        } else {
+          // If we can't get status, assume all skipped
+          setIsGeneratingAvatarVideos(false);
+          setAvatarVideoProgress({ initiated: 0, processing: 0, completed: 0, total: 0 });
+          stopPolling(presentationId, 'ALL_AVATAR_VIDEOS_GENERATION');
+          
+          toast({
+            title: "No New Videos Generated",
+            description: "All slides already have avatar videos."
+          });
+        }
+      } else {
+        throw new Error(response.message || 'Failed to start generation');
+      }
+    } catch (error) {
+      console.error('Failed to start avatar video generation:', error);
+      toast({
+        title: "Generation Failed",
+        description: "Failed to start avatar video generation. Please try again.",
+        variant: "destructive"
+      });
+      setIsGeneratingAvatarVideos(false);
+      setAvatarVideoProgress({ initiated: 0, processing: 0, completed: 0, total: 0 });
+    }
+  };
+
+  const startAvatarVideoPolling = () => {
+    // Clear any existing polling
+    if (avatarVideoPollingRef.current) {
+      clearInterval(avatarVideoPollingRef.current);
+    }
+    
+    let pollCount = 0;
+    const maxPolls = 90; // Max 15 minutes (90 * 10 seconds)
+    
+    // Poll every 10 seconds for video status
+    avatarVideoPollingRef.current = setInterval(async () => {
+      pollCount++;
+      try {
+        const response = await apiService.getAvatarVideosStatus(presentationId);
+        
+        // Handle case where response has no data (all videos might be skipped/not exist)
+        if (!response.data || response.data.length === 0) {
+          // No videos found or all were skipped - stop polling
+          if (avatarVideoPollingRef.current) {
+            clearInterval(avatarVideoPollingRef.current);
+            avatarVideoPollingRef.current = null;
+          }
+          setIsGeneratingAvatarVideos(false);
+          stopPolling(presentationId, 'ALL_AVATAR_VIDEOS_GENERATION');
+          
+          // Don't show a toast here since we already showed one from batch status
+          setAvatarVideoProgress({ initiated: 0, processing: 0, completed: 0, total: 0 });
+          return;
+        }
+        
+        if (response.success && response.data) {
+          const pending = response.data.filter(v => v.status === 'PENDING').length;
+          const processing = response.data.filter(v => v.status === 'PROCESSING').length;
+          const completed = response.data.filter(v => v.status === 'COMPLETED').length;
+          const failed = response.data.filter(v => v.status === 'FAILED').length;
+          const total = response.data.length;
+          
+          setAvatarVideoProgress({
+            initiated: total - failed,
+            processing: pending + processing,
+            completed,
+            total
+          });
+          
+          // Check if all done (no pending/processing)
+          if (pending === 0 && processing === 0 && total > 0) {
+            // Stop polling
+            if (avatarVideoPollingRef.current) {
+              clearInterval(avatarVideoPollingRef.current);
+              avatarVideoPollingRef.current = null;
+            }
+            setIsGeneratingAvatarVideos(false);
+            setAvatarVideoProgress({ initiated: 0, processing: 0, completed: 0, total: 0 }); // Reset progress
+            stopPolling(presentationId, 'ALL_AVATAR_VIDEOS_GENERATION');
+            
+            // Remove the IN_PROGRESS status from the store since generation is complete
+            const updatedStatuses = analysisStatuses.filter(s => 
+              !(s.presentationId === presentationId && s.analysisType === 'ALL_AVATAR_VIDEOS_GENERATION')
+            );
+            setAnalysisStatuses(updatedStatuses);
+            
+            // Show completion message
+            if (failed > 0) {
+              toast({
+                title: "Avatar Videos Partially Complete",
+                description: `Generated ${completed} avatar videos. ${failed} failed.`,
+                variant: "default"
+              });
+            } else if (completed === 0) {
+              // All were skipped
+              toast({
+                title: "No New Videos Generated",
+                description: "All slides already have avatar videos."
+              });
+            } else {
+              toast({
+                title: "Avatar Videos Complete",
+                description: `Successfully generated ${completed} avatar videos!`
+              });
+            }
+          }
+        }
+        
+        // Safety check: stop after max polls
+        if (pollCount >= maxPolls) {
+          if (avatarVideoPollingRef.current) {
+            clearInterval(avatarVideoPollingRef.current);
+            avatarVideoPollingRef.current = null;
+          }
+          setIsGeneratingAvatarVideos(false);
+          setAvatarVideoProgress({ initiated: 0, processing: 0, completed: 0, total: 0 });
+          stopPolling(presentationId, 'ALL_AVATAR_VIDEOS_GENERATION');
+          
+          toast({
+            title: "Generation Timeout",
+            description: "Avatar video generation timed out. Please check the status manually.",
+            variant: "default"
+          });
+        }
+      } catch (error) {
+        console.error('Failed to poll avatar video status:', error);
+      }
+    }, 10000); // Poll every 10 seconds
+  };
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (avatarVideoPollingRef.current) {
+        clearInterval(avatarVideoPollingRef.current);
+      }
+    };
+  }, []);
+
   const handlePreflightCheck = () => {
     setPreflightModalOpen(true);
   };
@@ -477,6 +704,33 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                     </Button>
                     <Button
                       variant="outline"
+                      onClick={handleGenerateAllAvatarVideos}
+                      className="justify-start"
+                      disabled={isGeneratingAvatarVideos || currentAnalysisStatuses.some(s => s.analysisType === 'ALL_AVATAR_VIDEOS_GENERATION' && s.state === 'IN_PROGRESS')}
+                    >
+                      {isGeneratingAvatarVideos ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generating Avatar Videos...
+                        </>
+                      ) : (
+                        <>
+                          <Video className="h-4 w-4 mr-2" />
+                          Generate All Avatar Videos
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIntroVideoModalOpen(true)}
+                      className="justify-start"
+                      disabled={!deckAnalysis}
+                    >
+                      <Video className="h-4 w-4 mr-2" />
+                      Generate Intro Video
+                    </Button>
+                    <Button
+                      variant="outline"
                       onClick={handlePreflightCheck}
                       className="justify-start"
                       disabled={isRunningPreflightCheck}
@@ -490,15 +744,6 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => setIntroVideoModalOpen(true)}
-                      className="justify-start"
-                      disabled={!deckAnalysis}
-                    >
-                      <Video className="h-4 w-4 mr-2" />
-                      Generate Intro Video
-                    </Button>
-                    <Button
-                      variant="outline"
                       onClick={() => setVideoStoryModalOpen(true)}
                       className="justify-start"
                       disabled={!introVideo}
@@ -508,6 +753,37 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                     </Button>
                   </div>
                 </div>
+                
+                {/* Show progress for avatar video generation */}
+                {isGeneratingAvatarVideos && avatarVideoProgress.total > 0 && (
+                  <div className="space-y-2 p-3 bg-muted/50 rounded-lg mt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">
+                        Avatar Video Generation Progress
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {avatarVideoProgress.completed} of {avatarVideoProgress.total} completed
+                      </span>
+                    </div>
+                    <Progress 
+                      value={(avatarVideoProgress.completed / avatarVideoProgress.total) * 100} 
+                      className="h-2" 
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>
+                        {avatarVideoProgress.processing > 0 && (
+                          <>{avatarVideoProgress.processing} processing • </>
+                        )}
+                        {avatarVideoProgress.completed} completed
+                      </span>
+                      <span>
+                        {avatarVideoProgress.processing > 0 
+                          ? "Videos are being processed by HeyGen..."
+                          : "Checking video status..."}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Show progress for audio generation */}
                 {isGeneratingAllAudio && audioGenerationProgress.total > 0 && (
@@ -542,6 +818,7 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                       switch (type) {
                         case 'ALL_SLIDES_ANALYSIS': return 'Slide Analysis';
                         case 'ALL_NARRATIVES_GENERATION': return 'Narrative Generation';
+                        case 'ALL_AVATAR_VIDEOS_GENERATION': return 'Avatar Video Initiation';
                         default: return type;
                       }
                     };
