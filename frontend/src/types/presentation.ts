@@ -544,6 +544,8 @@ export interface AvatarVideoResponse extends AvatarVideo {
  */
 export interface AvatarVideoStatusDto {
   id: string;
+  slideId: string;
+  slideNumber: number;
   status: AvatarGenerationStatus;
   errorMessage?: string;
   progressPercentage?: number;
@@ -552,4 +554,10 @@ export interface AvatarVideoStatusDto {
   durationSeconds?: number;
   startedAt?: string;
   completedAt?: string;
+}
+
+export interface BatchAvatarVideoInitResponse {
+  videosToGenerate: number;
+  totalSlides: number;
+  skippedSlides: number;
 }

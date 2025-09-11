@@ -15,7 +15,8 @@ import {
   AvatarVideo,
   AvatarVideoRequest,
   AvatarVideoResponse,
-  AvatarVideoStatusDto
+  AvatarVideoStatusDto,
+  BatchAvatarVideoInitResponse
 } from '../types/presentation';
 
 import {
@@ -902,8 +903,8 @@ class ApiService {
       usePublishedAudio?: boolean;
       customAudioUrl?: string;
     }
-  ): Promise<ApiResponse<string>> {
-    const response = await this.axiosInstance.post<ApiResponse<string>>(
+  ): Promise<ApiResponse<BatchAvatarVideoInitResponse>> {
+    const response = await this.axiosInstance.post<ApiResponse<BatchAvatarVideoInitResponse>>(
       `/presentations/${presentationId}/generate-all-avatar-videos`,
       options || {}
     );

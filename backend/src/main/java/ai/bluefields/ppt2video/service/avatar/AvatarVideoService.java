@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -603,17 +604,58 @@ public class AvatarVideoService {
   /**
    * Convert AvatarVideo entity to AvatarVideoStatusDto.
    *
+   * <p>TODO: Architectural improvement needed - Status endpoints should not generate/refresh URLs.
+   * This method is called during status polling (every 5 seconds) and shouldn't have side effects
+   * like URL regeneration. Consider: 1. Remove publishedUrl from status DTOs entirely 2. Create
+   * separate endpoint for getting/refreshing video URLs (e.g., /api/avatar-videos/{id}/url) 3. Only
+   * fetch URLs when actually needed for viewing/downloading, not during progress polling This would
+   * make status checks truly read-only and improve performance.
+   *
    * @param avatarVideo the avatar video entity
    * @return the status DTO
    */
   private AvatarVideoStatusDto toStatusDto(AvatarVideo avatarVideo) {
-    // Get refreshed URL if available
+    // Get published URL if available
     String publishedUrl = null;
     if (avatarVideo.getR2Asset() != null) {
       try {
-        publishedUrl = r2AssetService.regeneratePresignedUrl(avatarVideo.getR2Asset().getId());
+        // Check if we need to regenerate the URL
+        // Only regenerate if the URL is expired or will expire within the next 5 minutes
+        AssetMetadata asset = avatarVideo.getR2Asset();
+        boolean needsRefresh = false;
+
+        if (asset.getPresignedUrls() != null && !asset.getPresignedUrls().isEmpty()) {
+          // Check the most recent active download URL
+          Optional<PresignedUrl> activeUrl =
+              asset.getPresignedUrls().stream()
+                  .filter(url -> url.getUrlType() == UrlType.DOWNLOAD && url.getIsActive())
+                  .findFirst();
+
+          if (activeUrl.isPresent()) {
+            LocalDateTime expiresAt = activeUrl.get().getExpiresAt();
+            LocalDateTime fiveMinutesFromNow = LocalDateTime.now().plusMinutes(5);
+
+            // Only regenerate if expired or expiring within 5 minutes
+            needsRefresh = expiresAt.isBefore(fiveMinutesFromNow);
+
+            if (!needsRefresh) {
+              // Use existing URL
+              publishedUrl = activeUrl.get().getPresignedUrl();
+            }
+          } else {
+            // No active URL found, need to generate one
+            needsRefresh = true;
+          }
+        } else {
+          // No URLs at all, need to generate one
+          needsRefresh = true;
+        }
+
+        if (needsRefresh) {
+          publishedUrl = r2AssetService.regeneratePresignedUrl(asset.getId());
+        }
       } catch (Exception e) {
-        log.warn("Failed to get refreshed URL for asset: {}", avatarVideo.getR2Asset().getId(), e);
+        log.warn("Failed to get URL for asset: {}", avatarVideo.getR2Asset().getId(), e);
       }
     }
 

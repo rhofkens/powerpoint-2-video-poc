@@ -5,6 +5,7 @@ import ai.bluefields.ppt2video.dto.AnalysisStatusDto.AnalysisType;
 import ai.bluefields.ppt2video.dto.ApiResponse;
 import ai.bluefields.ppt2video.dto.GenerateNarrativeRequestDto;
 import ai.bluefields.ppt2video.dto.ShortenNarrativeResponse;
+import ai.bluefields.ppt2video.dto.avatar.BatchAvatarVideoInitResponse;
 import ai.bluefields.ppt2video.dto.avatar.BatchAvatarVideoRequest;
 import ai.bluefields.ppt2video.entity.DeckAnalysis;
 import ai.bluefields.ppt2video.entity.Presentation;
@@ -638,7 +639,7 @@ public class AIAnalysisController {
    * @return Response indicating batch generation has started
    */
   @PostMapping("/presentations/{id}/generate-all-avatar-videos")
-  public ResponseEntity<ApiResponse<String>> generateAllAvatarVideos(
+  public ResponseEntity<ApiResponse<BatchAvatarVideoInitResponse>> generateAllAvatarVideos(
       @PathVariable("id") UUID presentationId,
       @RequestBody(required = false) BatchAvatarVideoRequest request) {
 
@@ -668,7 +669,7 @@ public class AIAnalysisController {
       log.warn("Presentation not found: {}", presentationId);
       return ResponseEntity.status(HttpStatus.NOT_FOUND)
           .body(
-              ApiResponse.<String>builder()
+              ApiResponse.<BatchAvatarVideoInitResponse>builder()
                   .success(false)
                   .message("Presentation not found")
                   .build());
@@ -681,28 +682,47 @@ public class AIAnalysisController {
       log.warn("Presentation {} has no slides", presentationId);
       return ResponseEntity.status(HttpStatus.BAD_REQUEST)
           .body(
-              ApiResponse.<String>builder()
+              ApiResponse.<BatchAvatarVideoInitResponse>builder()
                   .success(false)
                   .message("No slides found in presentation")
                   .build());
     }
 
-    // Start batch avatar video generation asynchronously
+    // Count how many videos will actually be generated
+    int videosToGenerate =
+        batchAvatarVideoOrchestrator.countSlidesNeedingVideos(presentationId, request);
+    int totalSlides = presentation.getSlides().size();
+    int skippedSlides = totalSlides - videosToGenerate;
+
     log.info(
-        "Starting batch avatar video generation for presentation {} with {} slides",
+        "Will generate {} avatar videos for presentation {} (total slides: {}, skipped: {})",
+        videosToGenerate,
         presentationId,
-        presentation.getSlides().size());
+        totalSlides,
+        skippedSlides);
+
+    // Start batch avatar video generation asynchronously
     batchAvatarVideoOrchestrator.generateAllAvatarVideos(presentationId, request);
     log.debug("Batch generation task submitted successfully for presentation: {}", presentationId);
 
+    // Build response with count information
+    BatchAvatarVideoInitResponse initResponse =
+        BatchAvatarVideoInitResponse.builder()
+            .videosToGenerate(videosToGenerate)
+            .totalSlides(totalSlides)
+            .skippedSlides(skippedSlides)
+            .build();
+
     return ResponseEntity.ok(
-        ApiResponse.<String>builder()
+        ApiResponse.<BatchAvatarVideoInitResponse>builder()
             .success(true)
-            .data("Avatar video generation started for all slides")
+            .data(initResponse)
             .message(
-                String.format(
-                    "Batch avatar video generation initiated for %d slides",
-                    presentation.getSlides().size()))
+                videosToGenerate > 0
+                    ? String.format(
+                        "Initiating %d avatar video%s",
+                        videosToGenerate, videosToGenerate == 1 ? "" : "s")
+                    : "All slides already have avatar videos")
             .build());
   }
 

@@ -56,6 +56,50 @@ public class BatchAvatarVideoOrchestrator {
   private int retryAttempts;
 
   /**
+   * Count how many slides need avatar video generation.
+   *
+   * @param presentationId The presentation ID
+   * @param request The batch generation request parameters
+   * @return The number of slides that will have videos generated
+   */
+  @Transactional(readOnly = true)
+  public int countSlidesNeedingVideos(UUID presentationId, BatchAvatarVideoRequest request) {
+    log.info("Counting slides needing videos for presentation: {}", presentationId);
+
+    // Fetch presentation with slides
+    Presentation presentation =
+        presentationRepository
+            .findByIdWithSlides(presentationId)
+            .orElseThrow(
+                () -> new IllegalArgumentException("Presentation not found: " + presentationId));
+
+    // Determine which slides to process
+    List<Slide> slidesToProcess = getSlidesToProcess(presentation, request);
+
+    if (slidesToProcess.isEmpty()) {
+      return 0;
+    }
+
+    // If regenerating existing videos, all slides need generation
+    if (request.isRegenerateExisting()) {
+      return slidesToProcess.size();
+    }
+
+    // Check for existing videos and count only those that need generation
+    Map<UUID, AvatarVideo> existingVideos = getExistingVideos(slidesToProcess);
+    int slidesNeedingGeneration = slidesToProcess.size() - existingVideos.size();
+
+    log.info(
+        "Presentation {} has {} slides, {} already have videos, {} need generation",
+        presentationId,
+        slidesToProcess.size(),
+        existingVideos.size(),
+        slidesNeedingGeneration);
+
+    return slidesNeedingGeneration;
+  }
+
+  /**
    * Asynchronously generates avatar videos for all slides in a presentation.
    *
    * @param presentationId The presentation ID
