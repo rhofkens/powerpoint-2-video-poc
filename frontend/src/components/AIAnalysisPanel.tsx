@@ -34,6 +34,8 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
   const [audioGenerationProgress, setAudioGenerationProgress] = useState({ current: 0, total: 0 });
   const [isGeneratingAvatarVideos, setIsGeneratingAvatarVideos] = useState(false);
   const [avatarVideoProgress, setAvatarVideoProgress] = useState({ initiated: 0, processing: 0, completed: 0, total: 0 });
+  const [isAnalyzingAllSlides, setIsAnalyzingAllSlides] = useState(false);
+  const [slideAnalysisProgress, setSlideAnalysisProgress] = useState({ current: 0, total: 0 });
   const avatarVideoPollingRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   
@@ -177,6 +179,9 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
 
   const handleAnalyzeAllSlides = async () => {
     try {
+      setIsAnalyzingAllSlides(true);
+      setSlideAnalysisProgress({ current: 0, total: 0 });
+      
       await apiService.analyzeAllSlides(presentationId);
       toast({
         title: "Slide Analysis Started",
@@ -187,10 +192,11 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
       await fetchAnalysisStatus(presentationId);
       
       // Start polling for progress updates
-      startPolling(presentationId);
+      startPolling(presentationId, 'ALL_SLIDES_ANALYSIS');
       
     } catch (error) {
       console.error('Failed to analyze slides:', error);
+      setIsAnalyzingAllSlides(false);
       toast({
         title: "Analysis Failed",
         description: "Failed to start slide analysis. Please try again.",
@@ -544,6 +550,54 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
     };
   }, []);
 
+  // Extract slide analysis progress from Zustand store
+  useEffect(() => {
+    const slideAnalysisStatus = analysisStatuses.find(
+      s => s.presentationId === presentationId && 
+           s.analysisType === 'ALL_SLIDES_ANALYSIS'
+    );
+    
+    if (slideAnalysisStatus) {
+      // Update progress
+      setSlideAnalysisProgress({
+        current: slideAnalysisStatus.completedItems || 0,
+        total: slideAnalysisStatus.totalItems || 0
+      });
+      
+      // Check if completed or failed
+      if (slideAnalysisStatus.state === 'COMPLETED') {
+        setIsAnalyzingAllSlides(false);
+        stopPolling(presentationId, 'ALL_SLIDES_ANALYSIS');
+        
+        // Remove the status from store to hide generic progress
+        const updatedStatuses = analysisStatuses.filter(s => 
+          !(s.presentationId === presentationId && s.analysisType === 'ALL_SLIDES_ANALYSIS')
+        );
+        setAnalysisStatuses(updatedStatuses);
+        
+        toast({
+          title: "Slide Analysis Complete",
+          description: `Successfully analyzed ${slideAnalysisStatus.completedItems} slides`
+        });
+      } else if (slideAnalysisStatus.state === 'FAILED') {
+        setIsAnalyzingAllSlides(false);
+        stopPolling(presentationId, 'ALL_SLIDES_ANALYSIS');
+        
+        // Remove the status from store
+        const updatedStatuses = analysisStatuses.filter(s => 
+          !(s.presentationId === presentationId && s.analysisType === 'ALL_SLIDES_ANALYSIS')
+        );
+        setAnalysisStatuses(updatedStatuses);
+        
+        toast({
+          title: "Slide Analysis Failed",
+          description: slideAnalysisStatus.message || "Analysis failed. Please try again.",
+          variant: "destructive"
+        });
+      }
+    }
+  }, [analysisStatuses, presentationId, stopPolling, setAnalysisStatuses, toast]);
+
   const handlePreflightCheck = () => {
     setPreflightModalOpen(true);
   };
@@ -662,9 +716,9 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                       variant="outline"
                       onClick={handleAnalyzeAllSlides}
                       className="justify-start"
-                      disabled={currentAnalysisStatuses.some(s => s.analysisType === 'ALL_SLIDES_ANALYSIS' && s.state === 'IN_PROGRESS')}
+                      disabled={isAnalyzingAllSlides}
                     >
-                      {currentAnalysisStatuses.some(s => s.analysisType === 'ALL_SLIDES_ANALYSIS' && s.state === 'IN_PROGRESS') ? (
+                      {isAnalyzingAllSlides ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       ) : (
                         <Brain className="h-4 w-4 mr-2" />
@@ -785,6 +839,25 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                   </div>
                 )}
                 
+                {/* Show progress for slide analysis */}
+                {isAnalyzingAllSlides && slideAnalysisProgress.total > 0 && (
+                  <div className="space-y-2 p-3 bg-muted/50 rounded-lg mt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">
+                        Slide Analysis Progress
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {Math.round((slideAnalysisProgress.current / slideAnalysisProgress.total) * 100)}%
+                      </span>
+                    </div>
+                    <Progress value={(slideAnalysisProgress.current / slideAnalysisProgress.total) * 100} className="h-2" />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{slideAnalysisProgress.current} of {slideAnalysisProgress.total} slides analyzed</span>
+                      <span>Analyzing slides with AI...</span>
+                    </div>
+                  </div>
+                )}
+                
                 {/* Show progress for audio generation */}
                 {isGeneratingAllAudio && audioGenerationProgress.total > 0 && (
                   <div className="space-y-2 p-3 bg-muted/50 rounded-lg mt-3">
@@ -806,9 +879,11 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                 
                 {/* Show progress for active operations */}
                 {(() => {
-                  const inProgressStatuses = currentAnalysisStatuses.filter(s => s.state === 'IN_PROGRESS');
-                  console.log('[AIAnalysisPanel] In-progress statuses:', inProgressStatuses);
-                  console.log('[AIAnalysisPanel] All current statuses:', currentAnalysisStatuses);
+                  // Filter out ALL_SLIDES_ANALYSIS if we're showing dedicated progress
+                  const inProgressStatuses = currentAnalysisStatuses.filter(s => 
+                    s.state === 'IN_PROGRESS' && 
+                    !(s.analysisType === 'ALL_SLIDES_ANALYSIS' && isAnalyzingAllSlides)
+                  );
                   
                   return inProgressStatuses.map((status, index) => {
                     const progress = status.totalItems > 0 ? 
@@ -822,8 +897,6 @@ export function AIAnalysisPanel({ presentationId, processingStatus, presentation
                         default: return type;
                       }
                     };
-                    
-                    console.log(`[AIAnalysisPanel] Rendering progress bar for ${status.analysisType}: ${progress}%`);
                     
                     return (
                       <div key={index} className="space-y-2 p-3 bg-muted/50 rounded-lg mt-3">
