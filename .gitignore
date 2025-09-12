@@ -227,3 +227,11 @@ gen/
 *.pid
 *.seed
 *.pid.lock
+
+
+# Ignore database backup files in the backend folder specifically
+/backend/*.bak
+/backend/backup_*.sql
+/backend/*backup*.sql
+/backend/*dump*.sql
+/backend/*.dump
