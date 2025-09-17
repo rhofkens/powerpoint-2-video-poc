@@ -60,8 +60,8 @@ The system follows a **monolithic architecture** pattern, appropriate for a POC 
                         ┌────────────┴─────────────────────┐
                         │                                  │
                   ┌─────▼─────┐  ┌─────────┐  ┌──────────▼──────┐
-                  │  OpenAI   │  │ElevenLabs│  │     D-ID API    │
-                  │GPT-4o-mini│  │   API    │  │                 │
+                  │  OpenAI   │  │ElevenLabs│  │     Heygen API    │
+                  │GPT-5-mini│  │   API    │  │                 │
                   └───────────┘  └─────────┘  └─────────────────┘
 ```
 
