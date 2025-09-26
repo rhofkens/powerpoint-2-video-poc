@@ -121,6 +121,8 @@ spring.ai.anthropic.api-key=sk-ant-...
 ```
 
 ### 3. Install & Run
+
+#### Option A: Run Both Services Together
 ```bash
 # Clone repository
 git clone https://github.com/your-org/powerpoint-2-video-poc.git
@@ -129,7 +131,35 @@ cd powerpoint-2-video-poc
 # Install dependencies
 npm run install:all
 
-# Start development servers
+# Start both frontend and backend
+npm run dev
+```
+
+#### Option B: Run Services Separately
+
+**Backend (Spring Boot):**
+```bash
+cd backend
+
+# Using Maven Wrapper
+./mvnw spring-boot:run
+
+# Or using system Maven
+mvn spring-boot:run
+
+# Or build and run JAR
+mvn clean package
+java -jar target/ppt2video-0.0.1-SNAPSHOT.jar
+```
+
+**Frontend (React/Vite):**
+```bash
+cd frontend
+
+# Install dependencies (if not already done)
+npm install
+
+# Start development server
 npm run dev
 ```
 
@@ -137,6 +167,7 @@ Access at:
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8080
 - Health Check: http://localhost:8080/api/health
+- Swagger UI: http://localhost:8080/swagger-ui.html
 
 ## Key API Endpoints
 
