@@ -49,10 +49,7 @@ The application transforms the presentation into a professional video with:
 
 **Watch the generated video:**
 
-<video width="100%" controls>
-  <source src="https://github.com/user-attachments/assets/ccc80be5-a127-4754-be68-ccdf15e28510" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+https://github.com/user-attachments/assets/ccc80be5-a127-4754-be68-ccdf15e28510
 
 *This 3.5-minute video was automatically generated from the 5-slide PowerPoint presentation, featuring natural narration, emotional tone adjustments, and professional transitions.*
 
