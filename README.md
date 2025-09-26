@@ -49,9 +49,10 @@ The application transforms the presentation into a professional video with:
 
 **Watch the generated video:**
 
-[🎥 View Generated Video (creating-customer-value.mp4)](assets/creating-customer-value.mp4)
-
-> **Note**: GitHub will display a video player when you click the link above. The video demonstrates the complete transformation from static slides to dynamic narrative content.
+<video width="100%" controls>
+  <source src="https://github.com/user-attachments/assets/ccc80be5-a127-4754-be68-ccdf15e28510" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 *This 3.5-minute video was automatically generated from the 5-slide PowerPoint presentation, featuring natural narration, emotional tone adjustments, and professional transitions.*
 
