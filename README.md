@@ -25,11 +25,35 @@ AI-powered platform that transforms PowerPoint presentations into professional n
 - **Intelligent Content Analysis**: Multi-model AI analysis (GPT-5 Mini, Claude 3.5) for comprehensive slide understanding
 - **Narrative Generation**: Context-aware storytelling with emotional tone optimization
 - **Multi-Engine TTS**: ElevenLabs integration with emotional enhancement for natural speech
-- **Avatar Generation**: D-ID API for lip-synced presenter videos
+- **Avatar Generation**: Heygen API for lip-synced presenter videos
 - **Intro Video Creation**: Google Veo API for AI-generated cinematic intros
 - **Asset Management**: Cloudflare R2 storage with automatic publishing pipeline
 - **Preflight System**: Comprehensive validation before video generation
 - **Real-time Monitoring**: WebSocket-based progress tracking
+
+## Showcase Example
+
+### Input: PowerPoint Presentation
+Here's an example presentation about "Creating Customer Value" that demonstrates the transformation capabilities:
+
+<img src="assets/slide-1.png" alt="Creating Customer Value - Title Slide" width="600">
+
+*First slide from the presentation - see [more slides](assets/) in the assets folder*
+
+### Output: AI-Generated Narrative Video
+The application transforms the presentation into a professional video with:
+- AI-generated narrative voiceover
+- Smooth transitions between slides
+- Optional avatar presenter
+- Cinematic intro sequence
+
+**Watch the generated video:**
+
+[🎥 View Generated Video (creating-customer-value.mp4)](assets/creating-customer-value.mp4)
+
+> **Note**: GitHub will display a video player when you click the link above. The video demonstrates the complete transformation from static slides to dynamic narrative content.
+
+*This 3.5-minute video was automatically generated from the 5-slide PowerPoint presentation, featuring natural narration, emotional tone adjustments, and professional transitions.*
 
 ## Technology Stack
 
