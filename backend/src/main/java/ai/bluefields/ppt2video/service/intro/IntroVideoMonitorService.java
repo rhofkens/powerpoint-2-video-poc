@@ -222,6 +222,10 @@ public class IntroVideoMonitorService {
       Path tempFile = Files.createTempFile("intro_", ".mp4");
       Files.write(tempFile, videoData);
 
+      // Apply audio fade-out if enabled
+      Path processedFile = veoApiService.applyAudioFadeOutIfEnabled(tempFile);
+      log.info("Video processing complete, fade-out applied: {}", processedFile.equals(tempFile));
+
       try {
         // Save the file to the expected location for publishExistingAsset
         Path storageDir =
@@ -231,7 +235,7 @@ public class IntroVideoMonitorService {
                 "intro_videos");
         Files.createDirectories(storageDir);
         Path targetFile = storageDir.resolve(fileName);
-        Files.move(tempFile, targetFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        Files.move(processedFile, targetFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
         // Use the existing publish method with forceRepublish=true
         AssetDto asset =

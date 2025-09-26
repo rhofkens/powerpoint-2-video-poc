@@ -189,6 +189,13 @@
 			<artifactId>tika-core</artifactId>
 			<version>${tika.version}</version>
 		</dependency>
+
+		<!-- ZeroTurnaround Process Executor -->
+		<dependency>
+			<groupId>org.zeroturnaround</groupId>
+			<artifactId>zt-exec</artifactId>
+			<version>1.12</version>
+		</dependency>
 	</dependencies>
 	
 	<dependencyManagement>

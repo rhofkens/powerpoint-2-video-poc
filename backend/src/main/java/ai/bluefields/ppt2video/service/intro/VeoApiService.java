@@ -6,15 +6,25 @@ import ai.bluefields.ppt2video.dto.veo.VeoVideoStatus;
 import ai.bluefields.ppt2video.dto.veo.api.VeoApiGenerationResponse;
 import ai.bluefields.ppt2video.dto.veo.api.VeoApiStatusResponse;
 import ai.bluefields.ppt2video.exception.ProcessingException;
+import jakarta.annotation.PostConstruct;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.zeroturnaround.exec.InvalidExitValueException;
+import org.zeroturnaround.exec.ProcessExecutor;
+import org.zeroturnaround.exec.ProcessResult;
+import org.zeroturnaround.exec.stream.LogOutputStream;
 
 /**
  * Service for interacting with Google Veo API for AI video generation. Handles video generation
@@ -31,6 +41,21 @@ public class VeoApiService {
 
   @Value("${google.veo.model:veo-3.0-fast-generate-001}")
   private String veoModel;
+
+  @Value("${veo.video.audio.fade-out-duration:1.5}")
+  private double fadeOutDuration;
+
+  @Value("${veo.video.audio.fade-out-enabled:true}")
+  private boolean fadeOutEnabled;
+
+  @Value("${veo.video.ffmpeg.path:/usr/local/bin/ffmpeg}")
+  private String ffmpegPath;
+
+  @Value("${veo.video.ffprobe.path:/usr/local/bin/ffprobe}")
+  private String ffprobePath;
+
+  @Value("${veo.video.ffmpeg.timeout-seconds:60}")
+  private int ffmpegTimeoutSeconds;
 
   public VeoApiService(
       RestClient.Builder restClientBuilder,
@@ -230,5 +255,182 @@ public class VeoApiService {
     }
 
     return builder.build();
+  }
+
+  /** Check if FFmpeg and FFprobe are available on system startup. */
+  @PostConstruct
+  public void checkFfmpegAvailability() {
+    if (!fadeOutEnabled) {
+      log.info("Audio fade-out is disabled in configuration");
+      return;
+    }
+
+    try {
+      // Check ffmpeg
+      ProcessResult ffmpegResult =
+          new ProcessExecutor()
+              .command(ffmpegPath, "-version")
+              .readOutput(true)
+              .timeout(5, TimeUnit.SECONDS)
+              .execute();
+
+      log.info("FFmpeg available at: {}", ffmpegPath);
+      log.debug("FFmpeg version: {}", ffmpegResult.outputUTF8().split("\n")[0]);
+
+      // Check ffprobe
+      ProcessResult ffprobeResult =
+          new ProcessExecutor()
+              .command(ffprobePath, "-version")
+              .readOutput(true)
+              .timeout(5, TimeUnit.SECONDS)
+              .execute();
+
+      log.info("FFprobe available at: {}", ffprobePath);
+      log.debug("FFprobe version: {}", ffprobeResult.outputUTF8().split("\n")[0]);
+
+    } catch (Exception e) {
+      log.error("FFmpeg tools not available, disabling audio fade-out feature", e);
+      fadeOutEnabled = false;
+    }
+  }
+
+  /**
+   * Get the duration of a video file using ffprobe.
+   *
+   * @param videoPath path to the video file
+   * @return duration in seconds
+   * @throws IOException if ffprobe execution fails
+   */
+  private double getVideoDuration(Path videoPath) throws IOException {
+    try {
+      ProcessResult result =
+          new ProcessExecutor()
+              .command(
+                  ffprobePath,
+                  "-v",
+                  "error",
+                  "-show_entries",
+                  "format=duration",
+                  "-of",
+                  "default=nk=1:nw=1",
+                  videoPath.toString())
+              .readOutput(true)
+              .timeout(10, TimeUnit.SECONDS)
+              .exitValues(0)
+              .execute();
+
+      String output = result.outputUTF8().trim();
+      double duration = Double.parseDouble(output);
+      log.debug("Video duration for {}: {} seconds", videoPath.getFileName(), duration);
+      return duration;
+
+    } catch (InvalidExitValueException e) {
+      throw new IOException("FFprobe failed with exit code: " + e.getExitValue(), e);
+    } catch (TimeoutException e) {
+      throw new IOException("FFprobe timed out", e);
+    } catch (Exception e) {
+      throw new IOException("Failed to get video duration", e);
+    }
+  }
+
+  /**
+   * Apply audio fade-out to a video file if enabled in configuration.
+   *
+   * @param videoPath path to the video file
+   * @return path to the processed video (same as input if fade-out applied)
+   */
+  public Path applyAudioFadeOutIfEnabled(Path videoPath) {
+    if (!fadeOutEnabled) {
+      log.debug("Audio fade-out is disabled, skipping processing");
+      return videoPath;
+    }
+
+    try {
+      return applyAudioFadeOut(videoPath, fadeOutDuration);
+    } catch (IOException e) {
+      log.error("Failed to apply audio fade-out, using original video", e);
+      return videoPath;
+    }
+  }
+
+  /**
+   * Apply audio fade-out to a video file using ffmpeg.
+   *
+   * @param inputPath path to the input video
+   * @param fadeOutDuration duration of fade-out in seconds
+   * @return path to the processed video (same as input, replaced in-place)
+   * @throws IOException if ffmpeg execution fails
+   */
+  private Path applyAudioFadeOut(Path inputPath, double fadeOutDuration) throws IOException {
+    // Create temp output file
+    Path outputPath = inputPath.getParent().resolve(inputPath.getFileName() + ".fadeout.mp4");
+
+    try {
+      // Get video duration
+      double duration = getVideoDuration(inputPath);
+
+      // Calculate fade start time
+      double fadeStart = Math.max(0, duration - fadeOutDuration);
+
+      log.info(
+          "Applying {}-second audio fade-out to video, starting at {} seconds",
+          fadeOutDuration,
+          fadeStart);
+
+      // Execute ffmpeg with zt-exec
+      ProcessResult result =
+          new ProcessExecutor()
+              .command(
+                  ffmpegPath,
+                  "-i",
+                  inputPath.toString(),
+                  "-c:v",
+                  "copy", // Copy video stream without re-encoding
+                  "-af",
+                  String.format("afade=t=out:st=%.2f:d=%.2f", fadeStart, fadeOutDuration),
+                  "-y", // Overwrite output file
+                  outputPath.toString())
+              .timeout(ffmpegTimeoutSeconds, TimeUnit.SECONDS)
+              .redirectError(
+                  new LogOutputStream() {
+                    @Override
+                    protected void processLine(String line) {
+                      log.debug("FFmpeg: {}", line);
+                    }
+                  })
+              .exitValues(0)
+              .execute();
+
+      // Verify output file exists and has reasonable size
+      if (!Files.exists(outputPath)) {
+        throw new IOException("FFmpeg did not create output file");
+      }
+
+      long outputSize = Files.size(outputPath);
+      long inputSize = Files.size(inputPath);
+      if (outputSize < inputSize * 0.5) {
+        throw new IOException("Output file seems corrupted (too small)");
+      }
+
+      // Replace input with output
+      Files.move(outputPath, inputPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      log.info("Successfully applied audio fade-out to video");
+
+      return inputPath;
+
+    } catch (InvalidExitValueException e) {
+      Files.deleteIfExists(outputPath);
+      throw new IOException("FFmpeg failed with exit code: " + e.getExitValue(), e);
+    } catch (TimeoutException e) {
+      Files.deleteIfExists(outputPath);
+      throw new IOException("FFmpeg timed out after " + ffmpegTimeoutSeconds + " seconds", e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      Files.deleteIfExists(outputPath);
+      throw new IOException("FFmpeg execution interrupted", e);
+    } catch (Exception e) {
+      Files.deleteIfExists(outputPath);
+      throw new IOException("Failed to apply audio fade-out", e);
+    }
   }
 }
