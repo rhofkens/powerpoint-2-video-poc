@@ -37,10 +37,15 @@ public class AssetController {
   public ResponseEntity<AssetDto> publishAsset(
       @PathVariable String assetType,
       @RequestParam UUID presentationId,
-      @RequestParam(required = false) UUID slideId) {
+      @RequestParam(required = false) UUID slideId,
+      @RequestParam(required = false, defaultValue = "false") boolean forceRepublish) {
 
     log.info(
-        "Publishing {} asset for presentation: {}, slide: {}", assetType, presentationId, slideId);
+        "Publishing {} asset for presentation: {}, slide: {}, forceRepublish: {}",
+        assetType,
+        presentationId,
+        slideId,
+        forceRepublish);
 
     // Convert string to AssetType enum
     AssetType type;
@@ -50,7 +55,8 @@ public class AssetController {
       return ResponseEntity.badRequest().build();
     }
 
-    AssetDto asset = r2AssetService.publishExistingAsset(presentationId, slideId, type);
+    AssetDto asset =
+        r2AssetService.publishExistingAsset(presentationId, slideId, type, forceRepublish);
     return ResponseEntity.ok(asset);
   }
 
