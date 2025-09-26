@@ -271,7 +271,7 @@ public class TextToSpeechService {
           "Including transition for last slide {}: \"{}\"",
           narrative.getSlide().getSlideNumber(),
           transitionPhrase.substring(0, Math.min(50, transitionPhrase.length())) + "...");
-      return new TransitionResult(narrativeText + " ... " + transitionPhrase, true, null);
+      return new TransitionResult(narrativeText + ". " + transitionPhrase, true, null);
     }
 
     // Check for redundancy
@@ -291,7 +291,7 @@ public class TextToSpeechService {
         "Including transition for slide {}: \"{}\"",
         narrative.getSlide().getSlideNumber(),
         transitionPhrase.substring(0, Math.min(50, transitionPhrase.length())) + "...");
-    return new TransitionResult(narrativeText + " ... " + transitionPhrase, true, null);
+    return new TransitionResult(narrativeText + ". " + transitionPhrase, true, null);
   }
 
   /**
